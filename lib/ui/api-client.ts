@@ -60,4 +60,6 @@ export const api = {
   getLesson: (id: string) => request<GetLessonResponse>(`${API_BASE}/lessons/${encodeURIComponent(id)}`),
   startDemoRun: (task_id?: string) => post<DemoState>("/api/start-demo-run", { task_id }),
   getDemo: (id: string) => request<DemoState>(`/api/start-demo-run${qs({ id })}`),
+  demoTasks: () =>
+    request<{ tasks: { task_id: string; domain: string; instruction: string }[] }>("/api/start-demo-run"),
 };
