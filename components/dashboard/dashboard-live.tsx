@@ -16,14 +16,14 @@ export function DashboardLive() {
       {error && <ErrorState error={error} onRetry={refresh} />}
       <Kpis kpis={data.kpis} />
       <div className="grid gap-6 lg:grid-cols-5">
-        <Card title="Steps per run and success rate" className="lg:col-span-3">
+        <Card title="Steps per run and success rate" className="fade-up [--d:0.3s] lg:col-span-3">
           <RunsChart runs={data.runs} />
         </Card>
-        <Card title="Recent failures" className="lg:col-span-2">
+        <Card title="Recent failures" className="fade-up [--d:0.4s] lg:col-span-2">
           <FailureList runs={data.recent_failures.slice(0, 5)} />
         </Card>
       </div>
-      <Card title="Recent runs">
+      <Card title="Recent runs" className="fade-up [--d:0.5s]">
         <RunsTable runs={data.runs.slice(0, 10)} empty="No runs yet. Start the demo above." />
       </Card>
     </div>

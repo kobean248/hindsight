@@ -8,7 +8,7 @@ import { useLoop } from "./use-loop";
 function DemoFrame({
   title,
   chip,
-  height = 292,
+  height = 340,
   children,
 }: {
   title: string;
