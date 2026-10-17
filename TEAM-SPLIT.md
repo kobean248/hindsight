@@ -53,14 +53,17 @@ own lane is not.
 
 ## Lane A — Data & Core Loop
 
-**Owns:** the database, the confidence/ranking math, and the loop
+**Owns:** the database, the confidence/ranking math, the loop
 orchestration that sequences `reflect → contribute → recordApplication →
-verify → recordOutcome` (PRD §03/06/07).
+verify → recordOutcome`, and **both public entry points over that same
+logic** — the HTTP routes and the MCP server (PRD §03/04/06/07).
 
 **Directories:** `supabase/migrations/*`, `lib/db/*`, `lib/scoring/*`
 (Wilson confidence + ranking, §06), `lib/loop/*` (orchestration),
 `app/api/lookup`, `app/api/contribute`, `app/api/get-run`,
-`app/api/get-dashboard` (thin route handlers calling into `lib/`).
+`app/api/get-dashboard`, `app/api/mcp/*` (thin route/tool handlers
+calling into `lib/` — the MCP tool handlers must not reimplement any
+logic that already lives in `lib/`).
 
 **Build, in order:**
 1. Apply the 4-table schema + DB functions from PRD §05 as migrations.
@@ -69,12 +72,21 @@ verify → recordOutcome` (PRD §03/06/07).
    0.75 relevance floor, `0.7×similarity + 0.3×confidence`, 0.92 dedup
    threshold) — unit test these against hand-built fixtures before
    anything else touches them.
-4. `lookup`/`contribute` route handlers.
-5. The loop orchestrator (`reflect`→…→`recordOutcome`), calling
+4. `lookup`/`contribute`/`getLesson` route handlers.
+5. The MCP server at `/api/mcp` (Streamable HTTP) exposing
+   `lookup_lessons`/`contribute_lesson`/`get_lesson` as thin wrappers over
+   the exact same calls the HTTP routes make — PRD §04 is explicit that
+   this is MVP, not optional, since the product's whole premise is an
+   external agent calling in. `record_outcome` lands once step 6 exists.
+6. The loop orchestrator (`reflect`→…→`recordOutcome`), calling
    `ExecutionAdapter.verify`-equivalent through the interface Lane B
    publishes (see below) — build this against Lane B's **test double**
-   from hour one; do not wait for the real adapter.
-6. Idempotency: unique-constraint-guarded `recordOutcome`, unit test the
+   from hour one; do not wait for the real adapter. Wire the MCP
+   `record_outcome` tool as a chained `verify()`-then-`recordOutcome()`
+   call that only ever accepts `application_id`/`run_id` from the
+   caller — never a client-supplied success value (PRD §04's trust
+   boundary).
+7. Idempotency: unique-constraint-guarded `recordOutcome`, unit test the
    double-call-is-a-no-op case explicitly — this is the easiest rule in
    the PRD to accidentally violate.
 
@@ -84,9 +96,9 @@ type) to compile against; if Lane B hasn't published it within the first
 hour, write it yourself from PRD §08 verbatim and flag the duplication
 for Lane B to reconcile into, don't block on it.
 
-**Hands off by end of day 1:** all 8 operations' internal logic working
-against the test double, with unit tests for scoring/dedup/idempotency
-green.
+**Hands off by end of day 1:** all 9 operations' internal logic working
+against the test double, reachable through both HTTP and MCP, with unit
+tests for scoring/dedup/idempotency green.
 
 ## Lane B — Execution & Agent
 
@@ -176,7 +188,7 @@ boundary held.
 |---|---|---|
 | 0 — Kickoff (~30 min) | All three have read the PRD and this doc; Lane B has started on the interface. | — |
 | 1 — Interface live (~hour 1–2) | `ExecutionAdapter` interface + test double merged to `main`. | Lanes A and C switch from stubs/mocks to the real test double. |
-| 2 — Core loop live (~day 1 end) | Lane A's 8 operations work end to end against the test double; Lane C's UI renders real (test-double-backed) data. | Lane C stops hand-mocking JSON. |
+| 2 — Core loop live (~day 1 end) | Lane A's 9 operations work end to end against the test double, reachable via both HTTP and MCP; Lane C's UI renders real (test-double-backed) data. | Lane C stops hand-mocking JSON. |
 | 3 — Real execution live (~mid-build) | Lane B's real adapter completes one evaluator-graded run; WebArena `task_id` confirmed. | Lane A/C swap from the test double to the real adapter. |
 | 4 — Full integration | All three lanes merged; one real run flows lookup→execute→reflect→contribute→verify→recordOutcome→UI with no mocks left in the path. | Demo rehearsal (PRD §10) can start. |
 | 5 — Demo rehearsal | Baseline fails for the intended reason, transfer succeeds, evidence is real, repeated more than once; fallback pair recorded. | Nothing — this is the last gate before presenting. |

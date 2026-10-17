@@ -4,7 +4,7 @@
 Status: Draft — hackathon scope
 Date: 2026-10-17
 Horizon: Single hackathon build
-Stack (locked): Next.js (web + API routes) · Supabase/Postgres + pgvector · OpenAI `text-embedding-3-small` (1536-dim) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator
+Stack (locked): Next.js (web + API routes + MCP server) · Supabase/Postgres + pgvector · OpenAI `text-embedding-3-small` (1536-dim) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator · MCP (Streamable HTTP, `/api/mcp`)
 
 A shared memory layer so that when one AI agent learns something the hard
 way, every other agent that hits the same task starts from the lesson
@@ -71,55 +71,128 @@ One web application, one database, one execution boundary. No second
 backend language unless named explicitly below.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ Next.js web app                                                  │
-│   Screens: Overview/Demo · Lessons · Run Inspector               │
-└───────────────────────────────┬───────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│ Next.js web app — Screens: Overview/Demo · Lessons · Run Inspector │
+└───────────────────────────────┬─────────────────────────────────┘
                                  │ same process, same deploy
-┌───────────────────────────────┴───────────────────────────────────┐
-│ Next.js API routes (orchestration)                                 │
-│   lookup · contribute · reflect · recordApplication · verify ·     │
-│   recordOutcome · getRun · getDashboard · run lifecycle            │
-└───────┬─────────────────────────────────────┬─────────────────────┘
-        │                                     │
-┌───────┴──────────────┐          ┌───────────┴───────────────────┐
-│ Supabase / Postgres   │          │ ExecutionAdapter (interface)   │
-│   lessons, agent_runs,│          │   real: Freestyle VM           │
-│   lesson_applications,│          │     + Playwright + WebArena    │
-│   run_events, pgvector│          │   test: in-process fake         │
-└────────────────────────┘          └──────────────┬───────────────┘
-                                                    │
-                                     ┌──────────────┴───────────────┐
-                                     │ LLM + benchmark integrations  │
-                                     │  Claude: agent actions,       │
-                                     │  Claude: Reflect diagnosis,   │
-                                     │  WebArena: evaluator (Python, │
-                                     │  invoked once per run inside  │
-                                     │  the VM — not a service)      │
-                                     └────────────────────────────────┘
+            ┌────────────────────┴────────────────────┐
+┌───────────┴────────────┐                  ┌──────────┴─────────────────┐
+│ HTTP API routes         │                  │ MCP server (/api/mcp,      │
+│  dashboard + any app    │                  │  Streamable HTTP)          │
+│  integration            │                  │  tools: lookup_lessons ·   │
+│                         │                  │  contribute_lesson ·       │
+│                         │                  │  get_lesson ·               │
+│                         │                  │  record_outcome            │
+└───────────┬─────────────┘                  └──────────┬─────────────────┘
+            │        both call the SAME service layer — no duplicated logic
+            └────────────────────┬────────────────────┘
+                                  │
+                   ┌──────────────┴───────────────┐
+                   │ lib/ (orchestration)           │
+                   │  lookup · contribute · reflect │
+                   │  recordApplication · verify ·  │
+                   │  recordOutcome · getRun ·      │
+                   │  getDashboard · run lifecycle   │
+                   └──────┬───────────────────┬─────┘
+                          │                   │
+            ┌──────────────┴──────┐   ┌────────┴────────────────────┐
+            │ Supabase / Postgres  │   │ ExecutionAdapter (interface) │
+            │  lessons, agent_runs,│   │  real: Freestyle VM          │
+            │  lesson_applications,│   │    + Playwright + WebArena   │
+            │  run_events, pgvector│   │  test: in-process fake       │
+            └───────────────────────┘   └──────────────┬───────────────┘
+                                                        │
+                                         ┌──────────────┴───────────────┐
+                                         │ LLM + benchmark integrations  │
+                                         │  Claude: agent actions,       │
+                                         │  Claude: Reflect diagnosis,   │
+                                         │  WebArena: evaluator (Python, │
+                                         │  invoked once per run inside  │
+                                         │  the VM — not a service)      │
+                                         └────────────────────────────────┘
 ```
 
 **Locked: no standalone Python service.** The orchestration layer, the DB
-access layer, and all API routes are TypeScript inside the one Next.js
-app. The single, explicit exception is WebArena's own evaluator, which is
-Python because WebArena ships it that way — reimplementing its grading
-logic in TS would be wasted, risky effort. That evaluator runs as a
-**one-shot subprocess inside the Freestyle VM** (the VM already has Python
-+ WebArena installed for the task environment), invoked once at the end
-of a run, and returns a single JSON object over stdout (contract in
-section 08). It is never a long-running service the Next.js app has to
+access layer, and all API/MCP handlers are TypeScript inside the one
+Next.js app. The single, explicit exception is WebArena's own evaluator,
+which is Python because WebArena ships it that way — reimplementing its
+grading logic in TS would be wasted, risky effort. That evaluator runs as
+a **one-shot subprocess inside the Freestyle VM** (the VM already has
+Python + WebArena installed for the task environment), invoked once at
+the end of a run, and returns a single JSON object over stdout (contract
+in section 08). It is never a long-running service the Next.js app has to
 keep configured and healthy — it's invoked, it answers, it exits.
 
-**Embedding calls are server-side, inside the same Next.js API routes**
-that call `lookup`/`contribute` — not a separate embedding microservice.
-See section 05 for the exact model.
+**Embedding calls are server-side, inside `lib/`**, called by both the
+HTTP routes and the MCP tool handlers below — not a separate embedding
+microservice, and not duplicated between the two entry points. See
+section 05 for the exact model.
 
-**The primary interface is HTTP, not MCP.** `lookup`/`contribute` are
-plain Next.js API routes (§07) — any agent calls them however it calls
-HTTP. An MCP server wrapping those same routes so MCP-native clients can
-call them as tools is a deliberate stretch item (§12), not a missing
-piece of this architecture — it wraps the routes, it doesn't replace
-them.
+### Agent integration: MCP + HTTPS
+
+**Decision: Agent Ledger is useless to an external agent without a
+discoverable tool interface, so MCP is MVP, not stretch.** Two entry
+points exist over the one service layer: a remote **MCP server** for
+agent-native tool discovery, and the **HTTP API routes** (§07) for the
+dashboard and any non-MCP integration. Neither duplicates the other's
+logic — both call straight into `lib/`.
+
+**Transport (locked): Streamable HTTP**, the MCP transport built for
+remote servers, served at `/api/mcp` inside the same Next.js app — not a
+separate deploy, not a separate process to keep healthy.
+
+**MCP tools exposed (locked, four):**
+
+| Tool | Input | Maps to |
+|---|---|---|
+| `lookup_lessons` | `domain, task_description, k?` | `lookup` (§07) |
+| `contribute_lesson` | `domain, task_description, outcome, trace, lesson_text?` | `contribute` (§07) |
+| `get_lesson` | `lesson_id` | new public read — full lesson row, success criteria, risk warnings, application history |
+| `record_outcome` | `application_id, run_id` | `verify` + `recordOutcome` (§07), chained |
+
+**`record_outcome` is intentionally narrower than "submit a verdict."**
+Its input is just `application_id` and `run_id` — it does **not** accept
+a client-supplied `success`/`verification_status` value. The handler
+calls the real `verify()` (the WebArena evaluator, §08) itself and
+records *that* result. An agent calling this tool cannot award itself a
+verified success by passing `success: true`; the only way `confidence`
+moves is through evidence the tool itself fetched. This is the same rule
+as §03's core-loop boundary, just enforced again at the MCP surface where
+an agent is the direct caller.
+
+`reflect`, `recordApplication`, and the raw `verify` call stay internal —
+callable by the orchestrator, not exposed as agent-facing tools. Exposing
+them directly would let an agent skip straight to claiming a verified
+outcome without ever having gone through `lookup`/`contribute`/execution.
+
+**Agent workflow (what calling the tools in sequence looks like):**
+1. Before acting, the agent calls `lookup_lessons`. An empty list is a valid, common response — the agent proceeds without a lesson, not with a forced irrelevant one (§06).
+2. The agent's execution harness drives the task (Playwright in a Freestyle VM, §08) and records the real trace.
+3. On failure, the harness calls `contribute_lesson` with the trace; the backend runs Reflect and persists the lesson — the agent never writes its own postmortem.
+4. A later agent calls `lookup_lessons`, gets the lesson, and the harness records a `lesson_applications` row (`recordApplication`, internal) when it decides to use it.
+5. The harness runs the task; the WebArena evaluator independently determines pass/fail.
+6. The harness (not the agent) calls `record_outcome` with just `application_id`/`run_id`; the backend fetches the evaluator result itself and updates confidence exactly once.
+7. MCP gives the agent *access* to these tools — it does not make the agent use them. The execution harness is responsible for enforcing "look up before acting, contribute after failing, record the outcome after verifying" as a hard sequence, not a suggestion left to the agent's judgment.
+
+**Trust boundaries (binding, restates and extends §03/§06/§08's rules at the MCP surface):**
+- Agent-submitted outcomes are claims, not evidence — only a real evaluator result (fetched server-side, never client-supplied) can move `verified_success`/`confidence`.
+- Tool inputs and trace contents are untrusted data (§08's prompt-injection rule applies identically here).
+- Remote MCP access requires authentication — this is not optional for the MVP, even on a hackathon timeline.
+- Neither the MCP server nor the HTTP routes ever expose the Supabase service-role key, or any internal-only operation (`reflect`, `recordApplication`, raw `verify`), to a caller.
+
+**Reference client for the demo:** the project's own Playwright-driven
+agent (§08) connects as an MCP client against this same server. That's
+what makes the three-round demo (§10) not depend on a third-party agent
+choosing to cooperate with the workflow — the harness enforces the
+sequence in step 7 above regardless of what any given agent would do left
+to its own judgment.
+
+**Operational note (flag, don't silently decide for the team):** if the
+Next.js app deploys to serverless infrastructure, confirm the host's
+request-duration and streaming limits are compatible with the MCP SDK and
+a long-running `startDemoRun` before the live demo — the VM run itself
+belongs behind `ExecutionAdapter` (§08), never inside a single held-open
+HTTP/MCP request.
 
 ## 05 · Data model
 
@@ -261,19 +334,24 @@ agent's judgment.)
 
 | Operation | Exposed as | Input | Output |
 |---|---|---|---|
-| `lookup` | public | `domain, task_description, k` | ranked lessons, each with `similarity`, `confidence`, `rank_score` |
-| `contribute` | public | `domain, task_pattern, outcome, trace, lesson?` | `{ run_id, lesson_id? }` |
+| `lookup` | HTTP + MCP (`lookup_lessons`) | `domain, task_description, k` | ranked lessons, each with `similarity`, `confidence`, `rank_score` |
+| `contribute` | HTTP + MCP (`contribute_lesson`) | `domain, task_pattern, outcome, trace, lesson?` | `{ run_id, lesson_id? }` |
+| `getLesson` | HTTP + MCP (`get_lesson`) | `lesson_id` | full lesson row, success criteria, risk warnings, application history |
 | `reflect` | internal | `run_id` (must reference a `failed` run with `verified_success = false`) | `{ root_cause, lesson_text, success_criteria, risk_warnings }` |
 | `recordApplication` | internal | `lesson_id, run_id` | `{ application_id }` |
 | `verify` | internal | `run_id, task_id` | `{ passed: boolean, evidence }` — calls the WebArena evaluator, never the agent |
-| `recordOutcome` | internal | `application_id, verified_result` | updated `{ times_applied, times_succeeded, confidence }` |
-| `getRun` | public | `run_id` | full run row + its `run_events`, retrieved lessons, applied lessons |
-| `getDashboard` | public | optional filters | aggregated, **actually queried** metrics — never fabricated/placeholder numbers |
+| `recordOutcome` | internal | `application_id, verified_result` | updated `{ times_applied, times_succeeded, confidence }` — `verified_result` is only ever a value the orchestrator itself got back from calling `verify`, never a caller-supplied value |
+| `getRun` | HTTP only | `run_id` | full run row + its `run_events`, retrieved lessons, applied lessons |
+| `getDashboard` | HTTP only | optional filters | aggregated, **actually queried** metrics — never fabricated/placeholder numbers |
 
-`reflect`, `verify`, and `recordOutcome` are internal orchestrator
-functions, not endpoints the frontend calls directly — the frontend only
-ever sees `lookup`, `contribute`, `getRun`, `getDashboard`, and a
-`startDemoRun` action that drives the internal functions in sequence.
+`reflect`, `recordApplication`, and the raw `verify` call are internal
+orchestrator functions, never exposed to the frontend or to any MCP
+caller directly. The MCP `record_outcome` tool (§04) is a chained wrapper
+— `run_id`/`application_id` in, `verify()` called server-side, then
+`recordOutcome()` with that real result — not a re-exposure of
+`recordOutcome`'s raw internal signature. `getRun`/`getDashboard` stay
+HTTP-only for the MVP: they're for the dashboard, not something an agent
+mid-task needs to call.
 
 **Run lifecycle (binding state machine):**
 `queued → running → (succeeded | failed | cancelled | timed_out)`.
@@ -434,7 +512,8 @@ Everything below ships before anything in section 12 is touched.
 
 | | Feature | Why it's load-bearing |
 |---|---|---|
-| MVP | Next.js app shell + API routes for all 8 operations | One deploy, one implementation path — the architecture in section 04. |
+| MVP | Next.js app shell + API routes for all 9 operations | One deploy, one implementation path — the architecture in section 04. |
+| MVP | MCP server (`/api/mcp`, Streamable HTTP) exposing `lookup_lessons`/`contribute_lesson`/`get_lesson`/`record_outcome` | Without this, nothing outside the project's own harness can discover or call the ledger — section 04 locks this as MVP specifically because the product's thesis assumes external agents as callers. |
 | MVP | 4-table schema + migrations + DB functions | Nothing else can be built correctly on an ambiguous relationship model (section 05). |
 | MVP | `ExecutionAdapter` + test double | Lets the rest of the stack be built/tested without live VM/LLM costs on every iteration. |
 | MVP | Real adapter: Freestyle + Playwright + WebArena evaluator | The one path that has to work live for the demo. |
@@ -454,7 +533,7 @@ stop whenever time runs out.
 | P2 | Risk warnings gated behind human approval before auto-applying | Shows the safety story, not just the learning story. |
 | P2 | Memory decay for lessons that stop succeeding | Shows the system notices its own staleness. |
 | P2 | Supabase Realtime instead of polling | Nicer, not necessary. |
-| P2 | MCP server wrapping `lookup`/`contribute` | Lets an MCP-compatible agent (Claude Code, Claude Desktop, etc.) call the ledger as a native tool instead of a hand-rolled HTTP client — the calling pattern the project's own thesis assumes, made literal. Wraps the existing API routes from §07; does not replace them as the primary interface. |
+| P2 | MCP tool-level auth scoping (per-agent/per-caller keys, rather than one shared credential) | Tightens the trust boundary in section 04 beyond "authenticated at all." |
 
 ## 13 · Risks & open questions
 
@@ -472,6 +551,7 @@ stop whenever time runs out.
 |---|---|---|
 | 1 | Next.js scaffold, 4-table schema + migrations + DB functions, Freestyle VM template (Playwright + WebArena + Python preinstalled). Confirm the real WebArena `task_id` (section 08 TBD). | Migrations apply clean; VM template boots. |
 | 2 | `ExecutionAdapter` test double; `lookup`/`contribute` against it. | Lookup threshold/ranking (section 06) unit-tested against fake data. |
+| 2.5 | MCP server at `/api/mcp` wrapping `lookup`/`contribute`/`getLesson` (and `record_outcome` once block 5 lands) — same `lib/` calls as the HTTP routes. | A real MCP client can connect, list the 4 tools, and get the same result `lookup`'s HTTP route returns for an identical query. |
 | 3 | `reflect` against a scripted failed trace from the test double. | Reflect output matches the `{root_cause, lesson_text, success_criteria, risk_warnings}` shape. |
 | 4 | Real adapter: wire Freestyle + Playwright + the Claude agent loop to the confirmed task. | One real run completes and a trace is persisted. |
 | 5 | Wire the real WebArena evaluator subprocess; `verify`/`recordOutcome` with idempotency. | A real run gets a real `passed`/`evidence` result; replaying `recordOutcome` doesn't double-count. |
@@ -513,6 +593,8 @@ clarification first.
 - [ ] A lesson application is linked to a specific run and has a recorded verification result (section 05/07).
 - [ ] Confidence changes only from verified application outcomes, without duplicate updates (section 06/07).
 - [ ] The dashboard, lesson explorer, and run inspector display actual persisted data (section 09).
+- [ ] A real MCP client can connect to `/api/mcp`, list `lookup_lessons`/`contribute_lesson`/`get_lesson`/`record_outcome`, and call each one successfully (section 04).
+- [ ] `record_outcome` cannot be made to record a verified success from a client-supplied value alone — the handler fetches the evaluator result itself (section 04).
 - [ ] The demo can show baseline failure, lesson creation, and fresh-agent transfer (section 10).
 - [ ] The system handles empty search results, timeouts, provider failures, and missing environment variables (section 07/08).
 - [ ] Automated tests cover retrieval, lesson creation, scoring, verification, and duplicate submissions.
