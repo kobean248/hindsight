@@ -153,13 +153,13 @@ export interface GetDashboardResponse {
   recent_failures: RunSummary[];
 }
 
-/** extension (Screen B): list lessons by domain/status. */
+/** proposed §07 listLessons (Screen B): list lessons by domain/status. */
 export interface ListLessonsResponse {
   lessons: Lesson[];
   domains: string[];
 }
 
-/** extension (Screen B): lesson detail + application history. */
+/** §07 getLesson (Screen B): lesson detail + application history. */
 export interface GetLessonResponse {
   lesson: Lesson;
   applications: (LessonApplication & {

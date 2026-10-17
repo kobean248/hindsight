@@ -343,6 +343,7 @@ agent's judgment.)
 | `recordOutcome` | internal | `application_id, verified_result` | updated `{ times_applied, times_succeeded, confidence }` — `verified_result` is only ever a value the orchestrator itself got back from calling `verify`, never a caller-supplied value |
 | `getRun` | HTTP only | `run_id` | full run row + its `run_events`, retrieved lessons, applied lessons |
 | `getDashboard` | HTTP only | optional filters | aggregated, **actually queried** metrics — never fabricated/placeholder numbers |
+| `listLessons` *(proposed, Lane C)* | HTTP only | optional `domain`, `status` | `{ lessons, domains }` — Screen B's domain/status filter (§09); `lookup` can't serve it because it's a thresholded similarity search |
 
 `reflect`, `recordApplication`, and the raw `verify` call are internal
 orchestrator functions, never exposed to the frontend or to any MCP
@@ -358,6 +359,14 @@ mid-task needs to call.
 Only `queued`/`running` may transition forward; terminal states don't
 transition again. Every `failed`/`timed_out` run has a non-null
 `error_code`.
+
+**TBD, owner: Lane A, flagged by Lane C:** `reflect` takes a `failed`
+run with `verified_success = false`, i.e. a run that executed cleanly and
+was graded a failure — but the rule above requires a non-null
+`error_code`, and every listed code is an infrastructure fault. Either
+allow a null `error_code` when `verified_success = false`, or add
+`evaluator_failed` to the code list. The UI renders both; the test double
+currently uses `failed` + null. Details: `docs/lane-c-api-expectations.md`.
 
 **Idempotency (binding):** `recordApplication` always creates a new
 `application_id` — that id is the idempotency key for `recordOutcome`.
