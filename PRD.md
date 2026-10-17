@@ -5,6 +5,7 @@ Status: Draft — hackathon scope
 Date: 2026-10-17
 Owner: sksfin@gmail.com
 Horizon: Single hackathon build
+Stack: Supabase/Postgres (ledger) · Playwright (browser control) · WebArena (benchmark tasks) · Freestyle (execution VM)
 
 A shared memory layer so that when one AI agent learns something the hard
 way, every other agent that hits the same task starts from the lesson
@@ -40,7 +41,7 @@ and die with the session.
 - Multi-tenant auth, org boundaries, lesson privacy controls.
 - A general-purpose agent framework — we instrument existing agents, not replace them.
 - Full semantic graph of tasks; a flat domain + task-pattern index is enough for the MVP.
-- Automated rollback of risky actions — we warn, we don't intervene.
+- Automated rollback of risky actions — we warn, we don't intervene. (Safe to hold because every run is sandboxed in its own disposable VM — see section 05.)
 
 ## 03 · The core loop
 
@@ -48,10 +49,10 @@ Six stages, repeated by every agent on every task. The loop is the product
 — everything in section 4 exists to make one of these six steps work.
 
 1. **Lookup — Search.** Agent queries lessons by domain + task description before acting.
-2. **Execute — Act.** Agent performs the task, informed by whatever lessons it retrieved.
+2. **Execute — Act.** Agent drives a real browser via Playwright, inside an ephemeral Freestyle VM, informed by whatever lessons it retrieved.
 3. **Reflect — Diagnose.** On failure, a judge LLM inspects the transcript and names the root cause.
 4. **Contribute — Write up.** The lesson, gotchas, success criteria, and risk warnings are saved.
-5. **Verify — Check.** A later agent applies the lesson; an explicit check confirms real success.
+5. **Verify — Check.** A later agent applies the lesson; an explicit, WebArena-graded check confirms real success.
 6. **Rank — Re-score.** Confidence moves up or down based on that outcome, not on claimed success.
 
 ## 04 · System & API
@@ -76,10 +77,15 @@ contribute(
   domain: str,
   task_description: str,
   outcome: "success" | "failure",
-  trace: list[Action],       # the agent's actual steps
+  trace: list[Action],       # the agent's actual Playwright actions
   lesson_text: str | None,   # omit on failure — Reflect fills this in
 ) -> lesson_id: str
 ```
+
+`trace` is the literal Playwright action log (goto/click/fill/…) for the
+run, not a paraphrase — that's what lets Reflect point at the exact step
+that went wrong, and what lets Failure Replay (section 07) play a run back
+action-for-action.
 
 ### Data model
 
@@ -105,21 +111,48 @@ hackathon scale, no managed vector DB required.
 > `contribute`/verify exposed as Postgres functions and thin TS wrappers in
 > `src/lessons.ts`.
 
-## 05 · MVP scope
+## 05 · Execution & benchmark stack
 
-Everything below ships before anything in section 6 is touched. If a
+Execute needs a real browser and a real, disposable place to run it; the
+demo needs a benchmark that scores "did it actually work" without us
+hand-writing graders.
+
+- **Playwright drives the browser**, chosen over Puppeteer because
+  WebArena's own reference agent harness is already built on Playwright —
+  using the same driver means the `trace` we record in `contribute()` lines
+  up action-for-action with what WebArena's evaluators expect, with no
+  adapter layer in between. Puppeteer stays a fallback only if Playwright's
+  footprint turns out to be too heavy for a given VM.
+- **WebArena supplies the tasks and the ground truth.** Instead of
+  hand-rolling demo tasks and eyeballing whether an agent "succeeded,"
+  WebArena ships a fixed suite of realistic sites (shopping, forums, a CMS,
+  maps) with programmatic evaluators per task. That's what `success_criteria`
+  (section 04) checks against, and what makes the benchmark dashboard
+  (section 06) a measured metric instead of a self-report.
+- **Freestyle provisions the VM.** Each agent run gets an ephemeral,
+  isolated VM from Freestyle rather than a shared machine. This is what
+  makes the non-goal in section 02 safe to hold without building rollback:
+  a failed or risky run is never rolled back, the VM it ran in is just
+  discarded. It also gives Failure Replay (section 06) a clean boundary —
+  replaying a run means handing the same lesson to a fresh VM, not
+  resetting shared state other runs depend on.
+
+## 06 · MVP scope
+
+Everything below ships before anything in section 7 is touched. If a
 stretch feature starts eating MVP time, it waits.
 
 | | Feature | Why it's load-bearing |
 |---|---|---|
 | MVP | lookup() / contribute() tools | The only surface agents actually touch — everything else is implementation. |
-| MVP | SQLite store + embedding index | Durable, zero-ops persistence for the demo and beyond. |
+| MVP | Playwright + Freestyle execution harness | Execute needs a real, disposable browser — this is what makes the loop's actions real instead of simulated. |
+| MVP | Postgres store + embedding index | Durable, zero-ops persistence for the demo and beyond. |
 | MVP | Automatic failure analysis | Removes the human from the loop — this is what makes it "learns the hard way, automatically." |
-| MVP | Explicit success verification | Without this, "lesson worked" is just an agent's self-report — the exact failure mode we're fixing. |
+| MVP | WebArena task + evaluator for the 3 demo rounds | Gives the Round 1–3 demo (section 07) a graded pass/fail instead of an eyeballed transcript. |
 | MVP | Confidence scoring | Lets lookup() rank lessons instead of dumping every match on the agent. |
 | MVP | Dashboard: lessons, failures, before/after | The only way judges see the loop working without reading logs. |
 
-## 06 · Stretch features
+## 07 · Stretch features
 
 Ranked by how much they strengthen the demo narrative per hour spent.
 Build top to bottom; stop whenever time runs out.
@@ -127,38 +160,41 @@ Build top to bottom; stop whenever time runs out.
 | | Feature | What it proves |
 |---|---|---|
 | P0 | Cross-agent transfer | Agent A fails, Agent B — a cold instance with zero shared context — succeeds off A's lesson. This is the whole pitch in one trace. |
-| P0 | Failure replay | Side-by-side of the failed run and the corrected run, same task. Makes the before/after visceral instead of a chart. |
-| P1 | Benchmark dashboard | Success rate, step count, time, and cost trending across trials — the quantitative backbone under the demo. |
+| P0 | Failure replay | Side-by-side of the failed run and the corrected run, same WebArena task, replayed in a fresh Freestyle VM. Makes the before/after visceral instead of a chart. |
+| P1 | Benchmark dashboard | Success rate, step count, time, and cost trending across many WebArena trials — the quantitative backbone under the demo. |
 | P2 | Risk warnings | Irreversible actions surfaced and gated behind human approval before a lesson is allowed to auto-apply them. |
 | P2 | Memory decay | Lessons that stop succeeding (environment drift, API changes) get flagged stale instead of silently misleading future agents. |
 
-## 07 · Demo & success metrics
+## 08 · Demo & success metrics
 
-The demo *is* the validation — three live rounds on the same task family,
+The demo *is* the validation — three live rounds on the same WebArena task,
 run in front of judges, not simulated.
 
-- **Round 1 — No memory.** A fresh agent attempts the task cold and fails — the baseline every later round is measured against.
+- **Round 1 — No memory.** A fresh agent attempts a WebArena task cold and fails — WebArena's own evaluator is the record of that failure, not our judgment.
 - **Round 2 — Reflect fires.** The failed trace is analyzed, a lesson is written and saved with an initial low confidence score.
-- **Round 3 — Cross-agent transfer.** A different, fresh agent instance looks up the same task, retrieves the lesson, and succeeds — verified, not self-reported.
+- **Round 3 — Cross-agent transfer.** A different, fresh agent instance, in its own Freestyle VM, looks up the same task, retrieves the lesson, and succeeds — confirmed by WebArena's evaluator, not self-reported.
 
 Close with the benchmark chart: success rate climbing and action/step count
-falling across trials, built from the actual trial data generated on
-stage — not a mock-up.
+falling across trials, built from the actual WebArena trial data generated
+on stage — not a mock-up.
 
-## 08 · Risks & open questions
+## 09 · Risks & open questions
 
 - **False-positive lessons.** A lesson learned from one flaky run can poison future lookups if confidence scoring doesn't weight sample size — mitigated by the Wilson-score approach in section 4, not a raw success rate.
 - **Reflect quality.** The failure-analysis LLM call is doing the most leveraged work in the system; a bad root-cause diagnosis produces a bad lesson that looks authoritative. Worth a dedicated eval set if time allows.
 - **Domain granularity.** Too coarse and lookup() returns irrelevant lessons; too fine and nothing ever matches. Start coarse, narrow based on what the demo tasks actually need.
-- **Scope creep into section 6.** Every stretch feature is individually compelling — the discipline is finishing section 5 first.
+- **WebArena setup cost.** The benchmark is a snapshot of real website clones and is known to be heavy and slow to stand up; budget that setup time before the hackathon, not during it.
+- **Freestyle VM cold starts.** If VM spin-up adds visible dead air to Round 3 on stage, pre-warm a small VM pool ahead of the demo rather than provisioning live.
+- **Scope creep into section 7.** Every stretch feature is individually compelling — the discipline is finishing section 6 first.
 
-## 09 · Build order
+## 10 · Build order
 
 | Block | Build |
 |---|---|
-| 1 | Schema + SQLite store + lookup()/contribute() as callable tools. |
-| 2 | Reflect: failure-analysis prompt that turns a trace into a structured lesson. |
-| 3 | Verify: success-criteria check so "it worked" is measured, not claimed. |
-| 4 | Confidence scoring wired into lookup() ranking. |
-| 5 | Dashboard: lessons table, failure list, before/after chart. |
-| 6 | Rehearse the three-round demo end to end before touching any stretch feature. |
+| 1 | Stand up a Freestyle VM template with Playwright and the WebArena task set preloaded, so later blocks don't re-pay that setup cost on every run. |
+| 2 | Schema + Postgres store + lookup()/contribute() as callable tools. |
+| 3 | Reflect: failure-analysis prompt that turns a trace into a structured lesson. |
+| 4 | Verify: wire the WebArena evaluator in as the success-criteria check, so "it worked" is measured, not claimed. |
+| 5 | Confidence scoring wired into lookup() ranking. |
+| 6 | Dashboard: lessons table, failure list, before/after chart. |
+| 7 | Rehearse the three-round demo end to end, live in Freestyle VMs, before touching any stretch feature. |
