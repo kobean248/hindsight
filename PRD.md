@@ -3,6 +3,7 @@
 **PRD · AL-002 · Draft — implementation-ready, supersedes AL-001**
 Status: Draft — hackathon scope
 Date: 2026-10-17
+Owner: [sksfin@gmail.com](mailto:sksfin@gmail.com)
 Horizon: Single hackathon build
 Stack (locked): Next.js (web + API routes) · Supabase/Postgres + pgvector · OpenAI `text-embedding-3-small` (1536-dim) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator
 
@@ -15,6 +16,8 @@ instead of the mistake.
 > re-derive it. Anything marked **TBD** is a genuine open item with an
 > owner and a deadline (before the block that depends on it), not a gap to
 > silently fill in.
+
+
 
 ## 01 · Problem & thesis
 
@@ -34,21 +37,27 @@ and die with the session.
 > because the second person to hit an error didn't have to re-derive the
 > fix. Agents need the same exchange.
 
+
+
 ## 02 · Goals & non-goals
 
 **In scope**
+
 - A lookup/contribute API any agent can call mid-task.
 - Automatic lesson generation from a failed run, no human writer required.
 - A confidence score per lesson, driven by *verified* observed outcomes, not author intent or self-report.
 - Proof, on stage, that a fresh agent with no memory of the failure succeeds using someone else's lesson, with evaluator evidence shown alongside the claim.
 
 **Out of scope (for now)**
+
 - Multi-tenant auth, org boundaries, lesson privacy controls.
 - A general-purpose agent framework — we instrument existing agents, not replace them.
 - A graph database for lessons/tasks; a flat domain + task-pattern index over a vector store is enough for the MVP (decision and rationale in section 05).
 - Automated rollback of risky actions — we warn, we don't intervene. (Safe to hold because every run is sandboxed in its own disposable VM — see section 08.)
 - Lesson versioning/supersession chains — duplicates are merged (section 06), not forked into version histories.
 - Deterministic, byte-for-byte replay of a run (section 10) — replay re-executes the same task configuration in a fresh VM; it is not guaranteed to retrace the original's exact DOM/selector path.
+
+
 
 ## 03 · The core loop
 
@@ -105,7 +114,8 @@ app. The single, explicit exception is WebArena's own evaluator, which is
 Python because WebArena ships it that way — reimplementing its grading
 logic in TS would be wasted, risky effort. That evaluator runs as a
 **one-shot subprocess inside the Freestyle VM** (the VM already has Python
-+ WebArena installed for the task environment), invoked once at the end
+
+- WebArena installed for the task environment), invoked once at the end
 of a run, and returns a single JSON object over stdout (contract in
 section 08). It is never a long-running service the Next.js app has to
 keep configured and healthy — it's invoked, it answers, it exits.
@@ -113,13 +123,6 @@ keep configured and healthy — it's invoked, it answers, it exits.
 **Embedding calls are server-side, inside the same Next.js API routes**
 that call `lookup`/`contribute` — not a separate embedding microservice.
 See section 05 for the exact model.
-
-**The primary interface is HTTP, not MCP.** `lookup`/`contribute` are
-plain Next.js API routes (§07) — any agent calls them however it calls
-HTTP. An MCP server wrapping those same routes so MCP-native clients can
-call them as tools is a deliberate stretch item (§12), not a missing
-piece of this architecture — it wraps the routes, it doesn't replace
-them.
 
 ## 05 · Data model
 
@@ -138,70 +141,82 @@ future model change can't silently mix incompatible vectors in one index.
 
 ### Four tables — the coding agent may add columns, not a different relationship model
 
-**`lessons`** — reusable knowledge, independent of any single run.
+`lessons` — reusable knowledge, independent of any single run.
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `domain` | text | e.g. `"webarena.shopping"` |
-| `task_pattern` | text | normalized task description |
-| `task_embedding` | vector(1536) | from `text-embedding-3-small` |
-| `embedding_model` | text | `"text-embedding-3-small"` — guards against silent model drift |
-| `lesson_text` | text, nullable | the fix, written by Reflect |
-| `root_cause` | text, nullable | why the originating run failed |
-| `success_criteria` | text, nullable | human-readable restatement of what the evaluator checks |
-| `risk_warnings` | text[] | irreversible/approval-gated steps |
-| `status` | text | `active` \| `decayed` \| `retired` |
-| `times_applied` | int, default 0 | verified applications only (section 06) |
-| `times_succeeded` | int, default 0 | verified successes only |
-| `confidence` | numeric, default 0 | Wilson lower bound (section 06) |
-| `created_at`, `updated_at`, `last_validated_at` | timestamptz | |
 
-**`agent_runs`** — one execution attempt. This is the row the whole rest
+| Field                                           | Type               | Notes                                                          |
+| ----------------------------------------------- | ------------------ | -------------------------------------------------------------- |
+| `id`                                            | uuid pk            |                                                                |
+| `domain`                                        | text               | e.g. `"webarena.shopping"`                                     |
+| `task_pattern`                                  | text               | normalized task description                                    |
+| `task_embedding`                                | vector(1536)       | from `text-embedding-3-small`                                  |
+| `embedding_model`                               | text               | `"text-embedding-3-small"` — guards against silent model drift |
+| `lesson_text`                                   | text, nullable     | the fix, written by Reflect                                    |
+| `root_cause`                                    | text, nullable     | why the originating run failed                                 |
+| `success_criteria`                              | text, nullable     | human-readable restatement of what the evaluator checks        |
+| `risk_warnings`                                 | text[]             | irreversible/approval-gated steps                              |
+| `status`                                        | text               | `active` | `decayed` | `retired`                               |
+| `times_applied`                                 | int, default 0     | verified applications only (section 06)                        |
+| `times_succeeded`                               | int, default 0     | verified successes only                                        |
+| `confidence`                                    | numeric, default 0 | Wilson lower bound (section 06)                                |
+| `created_at`, `updated_at`, `last_validated_at` | timestamptz        |                                                                |
+
+
+`agent_runs` — one execution attempt. This is the row the whole rest
 of the system hangs off; a lesson is not a run, and this table is why.
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `task_id` | text | WebArena task identifier (section 08) |
-| `agent_id` | text | logical identifier, e.g. `"agent-a"` / `"agent-b"` — not a person |
-| `status` | text | `queued` \| `running` \| `succeeded` \| `failed` \| `cancelled` \| `timed_out` |
-| `trace` | jsonb | structured action log (format in section 08) |
-| `started_at`, `completed_at` | timestamptz, nullable | |
-| `verified_success` | boolean, nullable | **only** ever set from an evaluator result via `verify()`; null until verified |
-| `error_code` | text, nullable | set on `failed`/`timed_out` (section 08) |
 
-**`lesson_applications`** — records a lesson being tried in a specific run.
+| Field                        | Types                 | Notes                                                                          |
+| ---------------------------- | --------------------- | ------------------------------------------------------------------------------ |
+| `id`                         | uuid pk               |                                                                                |
+| `task_id`                    | text                  | WebArena task identifier (section 08)                                          |
+| `agent_id`                   | text                  | logical identifier, e.g. `"agent-a"` / `"agent-b"` — not a person              |
+| `status`                     | text                  | `queued` | `running` | `succeeded` | `failed` | `cancelled` | `timed_out`      |
+| `trace`                      | jsonb                 | structured action log (format in section 08)                                   |
+| `started_at`, `completed_at` | timestamptz, nullable |                                                                                |
+| `verified_success`           | boolean, nullable     | **only** ever set from an evaluator result via `verify()`; null until verified |
+| `error_code`                 | text, nullable        | set on `failed`/`timed_out` (section 08)                                       |
+
+
+`lesson_applications` — records a lesson being tried in a specific run.
 One lesson may be applied across many runs; one run may apply multiple
 lessons (each gets its own row).
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | this is the idempotency key, see section 07 |
-| `lesson_id` | uuid fk → lessons | |
-| `run_id` | uuid fk → agent_runs | |
-| `applied_at` | timestamptz | |
-| `verification_status` | text | `pending` \| `verified_success` \| `verified_failure` \| `unrelated_failure` |
+
+| Field                 | Type                 | Notes                                                                     |
+| --------------------- | -------------------- | ------------------------------------------------------------------------- |
+| `id`                  | uuid pk              | this is the idempotency key, see section 07                               |
+| `lesson_id`           | uuid fk → lessons    |                                                                           |
+| `run_id`              | uuid fk → agent_runs |                                                                           |
+| `applied_at`          | timestamptz          |                                                                           |
+| `verification_status` | text                 | `pending` | `verified_success` | `verified_failure` | `unrelated_failure` |
+
 
 `unrelated_failure` exists so a run that failed for a reason unconnected
 to the lesson (e.g. the VM crashed) doesn't get counted as evidence the
 lesson is wrong — see the confidence rules in section 06.
 
-**`run_events`** — the live dashboard timeline; append-only.
+`run_events` — the live dashboard timeline; append-only.
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `run_id` | uuid fk → agent_runs | |
-| `event_type` | text | `queued` \| `vm_ready` \| `step` \| `evaluator_result` \| `error` \| … |
-| `payload` | jsonb | event-specific detail (e.g. one trace entry, one evaluator field) |
-| `created_at` | timestamptz | |
+
+| Field        | Type                 | Notes                                                             |
+| ------------ | -------------------- | ----------------------------------------------------------------- |
+| `id`         | uuid pk              |                                                                   |
+| `run_id`     | uuid fk → agent_runs |                                                                   |
+| `event_type` | text                 | `queued` | `vm_ready` | `step` | `evaluator_result` | `error` | … |
+| `payload`    | jsonb                | event-specific detail (e.g. one trace entry, one evaluator field) |
+| `created_at` | timestamptz          |                                                                   |
+
+
+
 
 ### Three rules that matter (unchanged from the review, now binding)
 
 - A lesson is not a run. One lesson may be applied across many runs, and each run may use multiple lessons.
 - An attempt is not a success. An agent saying "done" must never count as verified success without evaluator evidence (`agent_runs.verified_success` is only ever written by `verify()`).
 - A failed run isn't automatically a bad lesson. The failure, the diagnosis, and each later application's outcome are recorded separately (`agent_runs` vs. `lessons` vs. `lesson_applications`).
+
+
 
 ### Vector, not graph (decision, restated)
 
@@ -226,27 +241,29 @@ intentionally the simplest rule that avoids uncontrolled duplication.
 ## 06 · Confidence & ranking — exact math
 
 **Inputs.** Only *verified* applications count. For a lesson with
-\(s\) = count of `lesson_applications` rows with
+s = count of `lesson_applications` rows with
 `verification_status = 'verified_success'` and
-\(n\) = count of rows with `verification_status` in
+n = count of rows with `verification_status` in
 (`verified_success`, `verified_failure`) — i.e. `pending` and
-`unrelated_failure` rows are excluded from both \(s\) and \(n\).
+`unrelated_failure` rows are excluded from both s and n.
 
-**Wilson lower bound** (95% CI, \(z = 1.96\)), \(\hat p = s / n\):
+**Wilson lower bound** (95% CI, z = 1.96), \hat p = s / n:
 
 ```
 confidence = ( p̂ + z²/(2n) − z·√( p̂(1−p̂)/n + z²/(4n²) ) ) / (1 + z²/n)
 ```
 
 **Binding rules:**
-- An unverified (`pending`) application does not count as success, and does not change \(n\).
-- A `verified_failure` counts as an unsuccessful application — it changes \(n\) but not \(s\).
-- `unrelated_failure` changes neither \(n\) nor \(s\) — it's recorded for the audit trail (section 05) but doesn't move the score either way.
-- \(n = 0\) → `confidence = 0`, by definition, not by division error.
+
+- An unverified (`pending`) application does not count as success, and does not change n.
+- A `verified_failure` counts as an unsuccessful application — it changes n but not s.
+- `unrelated_failure` changes neither n nor s — it's recorded for the audit trail (section 05) but doesn't move the score either way.
+- n = 0 → `confidence = 0`, by definition, not by division error.
 - A brand-new lesson starts at `times_applied = 0`, `times_succeeded = 0`, `confidence = 0`.
 - The run that originally produced a lesson (the failure Reflect diagnosed) is never itself recorded as an application of that lesson — it's the `agent_runs` row Reflect read, not a `lesson_applications` row.
 
 **Ranking (locked formula).** `lookup(domain, task_description, k)`:
+
 1. Embed `task_description` with `text-embedding-3-small`.
 2. Compute cosine similarity against `task_embedding` for all `active` lessons in `domain`.
 3. **Relevance threshold: discard any lesson with similarity < 0.75** — regardless of confidence. A highly confident but semantically unrelated lesson must never be forced into context.
@@ -259,16 +276,18 @@ agent's judgment.)
 
 ## 07 · API contracts
 
-| Operation | Exposed as | Input | Output |
-|---|---|---|---|
-| `lookup` | public | `domain, task_description, k` | ranked lessons, each with `similarity`, `confidence`, `rank_score` |
-| `contribute` | public | `domain, task_pattern, outcome, trace, lesson?` | `{ run_id, lesson_id? }` |
-| `reflect` | internal | `run_id` (must reference a `failed` run with `verified_success = false`) | `{ root_cause, lesson_text, success_criteria, risk_warnings }` |
-| `recordApplication` | internal | `lesson_id, run_id` | `{ application_id }` |
-| `verify` | internal | `run_id, task_id` | `{ passed: boolean, evidence }` — calls the WebArena evaluator, never the agent |
-| `recordOutcome` | internal | `application_id, verified_result` | updated `{ times_applied, times_succeeded, confidence }` |
-| `getRun` | public | `run_id` | full run row + its `run_events`, retrieved lessons, applied lessons |
-| `getDashboard` | public | optional filters | aggregated, **actually queried** metrics — never fabricated/placeholder numbers |
+
+| Operation           | Exposed as | Input                                                                    | Output                                                                          |
+| ------------------- | ---------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `lookup`            | public     | `domain, task_description, k`                                            | ranked lessons, each with `similarity`, `confidence`, `rank_score`              |
+| `contribute`        | public     | `domain, task_pattern, outcome, trace, lesson?`                          | `{ run_id, lesson_id? }`                                                        |
+| `reflect`           | internal   | `run_id` (must reference a `failed` run with `verified_success = false`) | `{ root_cause, lesson_text, success_criteria, risk_warnings }`                  |
+| `recordApplication` | internal   | `lesson_id, run_id`                                                      | `{ application_id }`                                                            |
+| `verify`            | internal   | `run_id, task_id`                                                        | `{ passed: boolean, evidence }` — calls the WebArena evaluator, never the agent |
+| `recordOutcome`     | internal   | `application_id, verified_result`                                        | updated `{ times_applied, times_succeeded, confidence }`                        |
+| `getRun`            | public     | `run_id`                                                                 | full run row + its `run_events`, retrieved lessons, applied lessons             |
+| `getDashboard`      | public     | optional filters                                                         | aggregated, **actually queried** metrics — never fabricated/placeholder numbers |
+
 
 `reflect`, `verify`, and `recordOutcome` are internal orchestrator
 functions, not endpoints the frontend calls directly — the frontend only
@@ -346,20 +365,24 @@ wrong.
 the VM, as a subprocess after the agent calls `finish()` or hits the step
 budget. Contract: it reads the task config + final page/DOM state and
 writes one JSON object to stdout:
+
 ```json
 { "passed": true, "score": 1.0, "evidence": { "type": "program_html", "detail": "…" } }
 ```
+
 The orchestrator reads this over the VM's control channel and that JSON
 *is* the return value of `verify()` — it is never re-derived from the
 agent's own `finish(summary)` text.
 
 **Trace format (locked).** `agent_runs.trace` is a JSON array:
+
 ```json
 { "seq": 3, "ts": "2026-10-17T20:15:23Z", "type": "click",
   "selector": "#size-M", "value": null,
   "result": "ok", "error": null, "screenshot_ref": "s3://…/3.png",
   "duration_ms": 420 }
 ```
+
 `type` ∈ `navigate | click | fill | select | screenshot | finish | error`.
 
 **Cost/time limits (locked):** 40 agent steps max, 5-minute wall-clock run
@@ -367,40 +390,81 @@ timeout, 10-minute max VM lifetime, one Reflect LLM call per failed run.
 
 **Failure handling (locked):** if the evaluator, LLM provider, database,
 or VM service is unavailable, the run ends in `failed`/`timed_out` with
-one of `error_code ∈ {vm_provision_error, llm_timeout, llm_error,
-evaluator_unavailable, db_error}` — surfaced verbatim in the Run Inspector
+one of `error_code ∈ {vm_provision_error, llm_timeout, llm_error, evaluator_unavailable, db_error}` — surfaced verbatim in the Run Inspector
 (section 09), never swallowed.
 
 **Security (locked, not optional):**
+
 - The VM only ever holds a disposable WebArena benchmark account's credentials — no privileged or shared secrets reach agent-controlled code.
 - Page content, trace content, and retrieved `lesson_text` are **untrusted input** — they are never concatenated into a system prompt in a way that could override instructions or authorize an action the task didn't ask for (basic prompt-injection hygiene for anything scraped from a live page).
 - A disposable VM bounds *resource* blast radius; it does not bound what a malicious page could do to the benchmark account itself, so benchmark accounts carry no real-world value or access.
 
+### Lane B contract notes (proposed — pending team ack)
+
+Raised by Lane B per the team-split rule (contract changes get recorded
+here, not worked around). **None of these is locked until Lanes A and C
+ack it**; until then the locked text above still wins on any conflict.
+
+1. **Groq replaces Anthropic Claude for the agent runtime.** The agent
+   loop calls Groq tool-use, model set by `GROQ_MODEL` (default
+   `openai/gpt-oss-120b`), key in `GROQ_API_KEY`, server-side only — it
+   never enters the VM. This changes the stack line at the top of this
+   doc. Reflect likely moves to the same provider ("same provider" rule
+   above), which affects Lane A.
+2. **`screenshot()` returns text, not an image.** Groq models are
+   text-only, so the tool returns Playwright's accessibility snapshot of
+   the page. A PNG may be saved as an optional artifact, so
+   `screenshot_ref` in the trace format **may be `null`** for the MVP.
+   The trace shape itself is unchanged.
+3. **`RunStore` is injected into adapter constructors.** Both adapters
+   take a `RunStore` (`createRun`, `appendEvent`, `setStatus`,
+   `saveTrace`) and write `agent_runs` / `run_events` through it. Lane A
+   implements it over `lib/db`; Lane B ships an in-memory one for tests.
+   The `ExecutionAdapter` interface signature is unchanged.
+4. **Repo layout.** Lane B code lives in `lib/execution/*` and `agent/*`.
+   `tsconfig.json` drops `rootDir: "src"` and adds `lib` and `agent` to
+   `include` (NodeNext, `.js` import suffixes); Lane C's Next.js scaffold
+   will touch the same file, so that change needs coordinating with
+   Lane C.
+5. **A `failed` run with no infrastructure error has no valid
+   `error_code`.** Reflect requires a `failed` run with
+   `verified_success = false`, and every `failed` run must carry an
+   `error_code` — but the locked list only names infrastructure errors.
+   Proposed: add `task_failed` for "ran cleanly, evaluator returned
+   `passed: false`". The test double uses it today.
+
+
+
 ## 09 · Frontend specification
 
-Three screens. Live updates via **polling `getRun`/`getDashboard` every 2
+Three screens. Live updates via **polling** `getRun`**/**`getDashboard` **every 2
 seconds** for the MVP (simpler to debug than Realtime under hackathon time
 pressure); Supabase Realtime is a stretch upgrade, not a requirement.
 
 **Screen A — Overview / Demo**
+
 - KPI cards sourced from `getDashboard` (real aggregates — never a static number).
 - A **Run Demo** button that calls `startDemoRun`, driving Round 1 → 2 → 3 (section 10) with a live per-round status indicator (`baseline` / `reflecting` / `transfer`).
 - Success-rate and action-count chart, built from actual `agent_runs` rows.
 - Recent runs and recent failures lists, each linking into Run Inspector.
 
 **Screen B — Lessons**
+
 - Search by task description (same embedding + threshold path as `lookup`).
 - Filter by `domain` and `status`.
-- Lesson detail: `root_cause`, `lesson_text`, `success_criteria`, `risk_warnings`, `confidence`, and the \(s\)/\(n\) counts behind it.
+- Lesson detail: `root_cause`, `lesson_text`, `success_criteria`, `risk_warnings`, `confidence`, and the s/n counts behind it.
 - Application history: every `lesson_applications` row for this lesson, linking to its run.
 - Explicit empty state ("no lessons yet for this domain"), loading state, and error state — none of these three may be left unhandled.
 
 **Screen C — Run Inspector**
+
 - Chronological `run_events`/`trace` timeline.
 - Failure location + Reflect's diagnosis, when present.
 - Lessons retrieved before execution (from that run's `lookup` call) and any lesson created from it.
 - Verification result with the evaluator's raw `evidence` payload, not just pass/fail.
 - Side-by-side comparison view for a baseline run vs. its paired transfer run.
+
+
 
 ## 10 · Demo protocol — reproducible, not just impressive
 
@@ -432,29 +496,36 @@ except the final integration.
 
 Everything below ships before anything in section 12 is touched.
 
-| | Feature | Why it's load-bearing |
-|---|---|---|
-| MVP | Next.js app shell + API routes for all 8 operations | One deploy, one implementation path — the architecture in section 04. |
-| MVP | 4-table schema + migrations + DB functions | Nothing else can be built correctly on an ambiguous relationship model (section 05). |
-| MVP | `ExecutionAdapter` + test double | Lets the rest of the stack be built/tested without live VM/LLM costs on every iteration. |
-| MVP | Real adapter: Freestyle + Playwright + WebArena evaluator | The one path that has to work live for the demo. |
-| MVP | `reflect` → `contribute` → `recordApplication` → `verify` → `recordOutcome` wired end to end | This *is* the loop; a partial wiring is not a working product. |
-| MVP | Confidence + ranking per section 06, with the relevance threshold enforced | Lets `lookup()` return nothing rather than something wrong. |
-| MVP | All three UI screens against real persisted data | The only way judges see the loop working without reading logs — no screen may show a placeholder. |
+
+|     | Feature                                                                                      | Why it's load-bearing                                                                             |
+| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| MVP | Next.js app shell + API routes for all 8 operations                                          | One deploy, one implementation path — the architecture in section 04.                             |
+| MVP | 4-table schema + migrations + DB functions                                                   | Nothing else can be built correctly on an ambiguous relationship model (section 05).              |
+| MVP | `ExecutionAdapter` + test double                                                             | Lets the rest of the stack be built/tested without live VM/LLM costs on every iteration.          |
+| MVP | Real adapter: Freestyle + Playwright + WebArena evaluator                                    | The one path that has to work live for the demo.                                                  |
+| MVP | `reflect` → `contribute` → `recordApplication` → `verify` → `recordOutcome` wired end to end | This *is* the loop; a partial wiring is not a working product.                                    |
+| MVP | Confidence + ranking per section 06, with the relevance threshold enforced                   | Lets `lookup()` return nothing rather than something wrong.                                       |
+| MVP | All three UI screens against real persisted data                                             | The only way judges see the loop working without reading logs — no screen may show a placeholder. |
+
+
+
 
 ## 12 · Stretch features
 
 Ranked by demo narrative strength per hour spent. Build top to bottom;
 stop whenever time runs out.
 
-| | Feature | What it proves |
-|---|---|---|
-| P0 | Failure replay (re-execution, not deterministic playback — section 10) | Makes the before/after visceral instead of a chart. |
-| P1 | Benchmark dashboard trending across many WebArena trials | The quantitative backbone under the demo, beyond the one paired run. |
-| P2 | Risk warnings gated behind human approval before auto-applying | Shows the safety story, not just the learning story. |
-| P2 | Memory decay for lessons that stop succeeding | Shows the system notices its own staleness. |
-| P2 | Supabase Realtime instead of polling | Nicer, not necessary. |
-| P2 | MCP server wrapping `lookup`/`contribute` | Lets an MCP-compatible agent (Claude Code, Claude Desktop, etc.) call the ledger as a native tool instead of a hand-rolled HTTP client — the calling pattern the project's own thesis assumes, made literal. Wraps the existing API routes from §07; does not replace them as the primary interface. |
+
+|     | Feature                                                                | What it proves                                                       |
+| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| P0  | Failure replay (re-execution, not deterministic playback — section 10) | Makes the before/after visceral instead of a chart.                  |
+| P1  | Benchmark dashboard trending across many WebArena trials               | The quantitative backbone under the demo, beyond the one paired run. |
+| P2  | Risk warnings gated behind human approval before auto-applying         | Shows the safety story, not just the learning story.                 |
+| P2  | Memory decay for lessons that stop succeeding                          | Shows the system notices its own staleness.                          |
+| P2  | Supabase Realtime instead of polling                                   | Nicer, not necessary.                                                |
+
+
+
 
 ## 13 · Risks & open questions
 
@@ -466,22 +537,30 @@ stop whenever time runs out.
 - **Prompt injection via page content/lesson text.** Mitigated by treating trace and lesson content as untrusted input (section 08) — never concatenated as instructions.
 - **Scope creep into section 12.** Every stretch feature is individually compelling — the discipline is finishing section 11 first.
 
+
+
 ## 14 · Build order (dependency order — verify each layer before the next)
 
-| Block | Build | Verify before moving on |
-|---|---|---|
-| 1 | Next.js scaffold, 4-table schema + migrations + DB functions, Freestyle VM template (Playwright + WebArena + Python preinstalled). Confirm the real WebArena `task_id` (section 08 TBD). | Migrations apply clean; VM template boots. |
-| 2 | `ExecutionAdapter` test double; `lookup`/`contribute` against it. | Lookup threshold/ranking (section 06) unit-tested against fake data. |
-| 3 | `reflect` against a scripted failed trace from the test double. | Reflect output matches the `{root_cause, lesson_text, success_criteria, risk_warnings}` shape. |
-| 4 | Real adapter: wire Freestyle + Playwright + the Claude agent loop to the confirmed task. | One real run completes and a trace is persisted. |
-| 5 | Wire the real WebArena evaluator subprocess; `verify`/`recordOutcome` with idempotency. | A real run gets a real `passed`/`evidence` result; replaying `recordOutcome` doesn't double-count. |
-| 6 | All three UI screens against real persisted data; polling. | Empty/loading/error states all render; no placeholder numbers anywhere. |
-| 7 | Rehearse the full demo protocol (section 10) repeatedly; capture the recorded fallback pair. | Baseline fails for the intended reason, transfer succeeds, evidence is real — more than once. |
-| 8 | Stretch features (section 12), top to bottom, only if time remains. | — |
+
+| Block | Build                                                                                                                                                                                    | Verify before moving on                                                                            |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1     | Next.js scaffold, 4-table schema + migrations + DB functions, Freestyle VM template (Playwright + WebArena + Python preinstalled). Confirm the real WebArena `task_id` (section 08 TBD). | Migrations apply clean; VM template boots.                                                         |
+| 2     | `ExecutionAdapter` test double; `lookup`/`contribute` against it.                                                                                                                        | Lookup threshold/ranking (section 06) unit-tested against fake data.                               |
+| 3     | `reflect` against a scripted failed trace from the test double.                                                                                                                          | Reflect output matches the `{root_cause, lesson_text, success_criteria, risk_warnings}` shape.     |
+| 4     | Real adapter: wire Freestyle + Playwright + the Claude agent loop to the confirmed task.                                                                                                 | One real run completes and a trace is persisted.                                                   |
+| 5     | Wire the real WebArena evaluator subprocess; `verify`/`recordOutcome` with idempotency.                                                                                                  | A real run gets a real `passed`/`evidence` result; replaying `recordOutcome` doesn't double-count. |
+| 6     | All three UI screens against real persisted data; polling.                                                                                                                               | Empty/loading/error states all render; no placeholder numbers anywhere.                            |
+| 7     | Rehearse the full demo protocol (section 10) repeatedly; capture the recorded fallback pair.                                                                                             | Baseline fails for the intended reason, transfer succeeds, evidence is real — more than once.      |
+| 8     | Stretch features (section 12), top to bottom, only if time remains.                                                                                                                      | —                                                                                                  |
+
 
 ---
 
+
+
 ## Implementation Contract — Agent Ledger
+
+
 
 ### Source of truth
 
@@ -504,6 +583,8 @@ clarification first.
 10. Do not mark the project complete while core flows contain TODOs, placeholder API responses, or unimplemented buttons.
 11. Implement in the dependency order in section 14, running checks after each block — do not build every integration simultaneously in one unverified pass.
 
+
+
 ### Definition of done
 
 - [ ] A fresh checkout can be configured using documented environment variables and setup commands.
@@ -518,9 +599,12 @@ clarification first.
 - [ ] Automated tests cover retrieval, lesson creation, scoring, verification, and duplicate submissions.
 - [ ] A README documents setup, architecture, commands, environment variables, and the live demo procedure.
 
+
+
 ### Completion report
 
 At the end, report:
+
 - Features implemented and files created or modified.
 - Setup commands and required environment variables.
 - Tests and build commands actually executed, with their results.

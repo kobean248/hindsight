@@ -1,0 +1,1 @@
+{ "passed": true, "score": 1.0, "evidence": { "type": "program_html", "detail": "Cart page (/checkout/cart) contains 1 line item matching the target product with option Size=M." } }

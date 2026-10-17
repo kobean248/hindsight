@@ -1,0 +1,1 @@
+{ "passed": false, "score": 0.0, "evidence": { "type": "program_html", "detail": "Cart page (/checkout/cart) contains no line item matching the target product with option Size=M; mini-cart count is 0." } }
