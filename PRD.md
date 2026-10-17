@@ -40,7 +40,7 @@ and die with the session.
 **Out of scope (for now)**
 - Multi-tenant auth, org boundaries, lesson privacy controls.
 - A general-purpose agent framework — we instrument existing agents, not replace them.
-- Full semantic graph of tasks; a flat domain + task-pattern index is enough for the MVP.
+- A graph database for lessons/tasks; a flat domain + task-pattern index over a vector store is enough for the MVP (decision and rationale in section 04).
 - Automated rollback of risky actions — we warn, we don't intervene. (Safe to hold because every run is sandboxed in its own disposable VM — see section 05.)
 
 ## 03 · The core loop
@@ -110,6 +110,28 @@ hackathon scale, no managed vector DB required.
 > directly (`supabase/migrations`) rather than SQLite, with `lookup`/
 > `contribute`/verify exposed as Postgres functions and thin TS wrappers in
 > `src/lessons.ts`.
+
+### Storage choice: vector, not graph
+
+`lookup()`'s query shape is single-hop nearest-neighbor — find lessons
+whose `task_pattern` is semantically close to a `task_description`. That's
+a vector-search problem, not a graph-traversal one, and it stays that way
+even for cross-agent transfer (section 07's top stretch feature): Agent B
+just calls `lookup()` cold, no lineage walk required.
+
+A graph DB (lesson lineage, task-dependency chains, domain taxonomies)
+would earn its keep only once queries need genuine multi-hop reasoning —
+which section 02 already rules out of the MVP. Running a second database
+alongside Supabase for a query shape that doesn't need one would add
+sync/ops overhead with nothing to show for it.
+
+**Decision: pgvector, inside the existing Postgres/Supabase instance.**
+`task_embedding vector(1536)` and the `vector` extension are already in
+migration 1 — no new infra. The one open gap is that `lookup_lessons()`
+currently ranks by `pg_trgm` text similarity, not vector distance, because
+no embedding model is wired in yet to populate `task_embedding`; swapping
+the order-by for `<->` once that's in place is a follow-up, not a reason
+to revisit this decision.
 
 ## 05 · Execution & benchmark stack
 
