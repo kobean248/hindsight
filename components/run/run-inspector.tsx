@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { api } from "@/lib/ui/api-client";
 import { durationMs, when } from "@/lib/ui/format";
-import { diagnosisOf, failureStep, isSettled } from "@/lib/ui/run-view";
+import { diagnosisOf, evaluatorOf, failureStep, isSettled } from "@/lib/ui/run-view";
 import { usePolling } from "@/lib/ui/use-polling";
 import { RunStatusBadge } from "@/components/status";
 import { Badge, Card, ErrorState, LoadingState, PageHeader } from "@/components/ui";
 import { DiagnosisPanel, RetrievedLessons } from "./lessons-panels";
 import { Timeline } from "./timeline";
+import { TraceTerminal } from "./trace-terminal";
 import { Verdict } from "./verdict";
 
 export function RunInspector({ id }: { id: string }) {
@@ -56,6 +57,15 @@ export function RunInspector({ id }: { id: string }) {
           <RetrievedLessons data={data} />
           <DiagnosisPanel data={data} />
         </div>
+        <Card title="Agent trace">
+          <TraceTerminal
+            trace={run.trace}
+            agentId={run.agent_id}
+            runId={run.id}
+            live={!isSettled(data)}
+            verdict={evaluatorOf(data)}
+          />
+        </Card>
         <Card title={`Timeline (${run.trace.length} trace steps)`}>
           {fail && (
             <p className="mb-3 text-sm text-bad">

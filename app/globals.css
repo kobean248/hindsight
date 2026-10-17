@@ -1,39 +1,37 @@
 @import "tailwindcss";
 
+/* Agent Ledger: dark, high-contrast, OpenHack-style theme.
+   Palette, easing and motion are modelled on openhack.com. */
 :root {
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --surface-2: #f0f0ed;
-  --border: #e3e3de;
-  --text: #1c1c1a;
-  --muted: #6b6b66;
-  --accent: #2f5bd3;
-  --ok: #1f7a4d;
-  --ok-bg: #e5f3ec;
-  --bad: #b3261e;
-  --bad-bg: #fbe9e7;
-  --warn: #8a5a00;
-  --warn-bg: #fdf2dc;
-  --info-bg: #e8eefc;
-}
+  color-scheme: dark;
+  --bg: #050606;
+  --surface: #0b0d0c;
+  --surface-2: #131615;
+  --border: #1e2220;
+  --border-strong: #2f3532;
+  --text: #ededed;
+  --muted: #9ba3a0;
+  --accent: #00b97e;
+  --accent-hover: #1fcb91;
+  --gold: #e7b643;
+  --ok: #00b97e;
+  --ok-bg: rgb(0 185 126 / 0.12);
+  --bad: #ec8674;
+  --bad-bg: rgb(236 134 116 / 0.12);
+  --warn: #e7b643;
+  --warn-bg: rgb(231 182 67 / 0.12);
+  --info: #84bdd1;
+  --info-bg: rgb(132 189 209 / 0.12);
+  /* terminal panel: always dark */
+  --term-bg: #030404;
+  --term-fg: #e6e9e7;
+  --term-dim: #7d8682;
+  --term-ok: #00b97e;
+  --term-bad: #ec8674;
+  --term-accent: #84bdd1;
+  --term-border: #1e2220;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131312;
-    --surface: #1b1b1a;
-    --surface-2: #242422;
-    --border: #33332f;
-    --text: #ececea;
-    --muted: #9a9a94;
-    --accent: #7c9dff;
-    --ok: #5fd39a;
-    --ok-bg: #16301f;
-    --bad: #ff8a80;
-    --bad-bg: #3a1a17;
-    --warn: #f0c060;
-    --warn-bg: #352a12;
-    --info-bg: #1c2540;
-  }
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @theme inline {
@@ -41,18 +39,34 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-gold: var(--gold);
   --color-ok: var(--ok);
   --color-ok-bg: var(--ok-bg);
   --color-bad: var(--bad);
   --color-bad-bg: var(--bad-bg);
   --color-warn: var(--warn);
   --color-warn-bg: var(--warn-bg);
+  --color-info: var(--info);
   --color-info-bg: var(--info-bg);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --color-term-bg: var(--term-bg);
+  --color-term-fg: var(--term-fg);
+  --color-term-dim: var(--term-dim);
+  --color-term-ok: var(--term-ok);
+  --color-term-bad: var(--term-bad);
+  --color-term-accent: var(--term-accent);
+  --color-term-border: var(--term-border);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
 }
 
 body {
@@ -60,4 +74,351 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+::selection {
+  background: rgb(0 185 126 / 0.35);
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+input,
+select,
+textarea {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(0 185 126 / 0.18);
+}
+:where(a, button, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ───────────── buttons ───────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.2s var(--ease-out), background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: #ededed;
+  color: #050606;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #fff;
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.08), 0 8px 28px -8px rgb(255 255 255 / 0.35);
+}
+.btn-accent {
+  background: var(--accent);
+  color: #02130c;
+}
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: 0 8px 28px -8px rgb(0 185 126 / 0.7);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: #46504b;
+}
+.btn-sm {
+  min-height: 32px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.btn .arrow {
+  transition: transform 0.25s var(--ease-out);
+}
+.btn:hover .arrow {
+  transform: translateX(3px);
+}
+
+/* ───────────── typography helpers ───────────── */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.text-gold-gradient {
+  background-image: linear-gradient(120deg, #f6e2ac 0%, var(--gold) 45%, #c99a2b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 22px rgb(214 170 84 / 0.25));
+}
+.text-sweep {
+  background-image: linear-gradient(110deg, var(--muted) 30%, #fff 50%, var(--muted) 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-sweep 3.2s linear infinite;
+}
+
+/* ───────────── surfaces ───────────── */
+.panel {
+  position: relative;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.025), rgb(255 255 255 / 0) 40%), var(--surface);
+  border-radius: 12px;
+}
+.panel-hover {
+  transition: border-color 0.3s, transform 0.4s var(--ease-out), box-shadow 0.4s;
+}
+.panel-hover:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 18px 50px -28px rgb(0 185 126 / 0.35);
+}
+.grid-bg {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 80%);
+}
+
+/* ───────────── hero ───────────── */
+.hero-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 80%;
+  filter: blur(48px);
+  transform-origin: top;
+  background:
+    radial-gradient(55% 70% at 0 -8%, rgb(191 202 211 / 0.3), transparent 75%),
+    radial-gradient(60% 72% at 50% -4%, rgb(132 189 209 / 0.33), transparent 75%),
+    radial-gradient(55% 70% at 100% 0, rgb(180 142 67 / 0.35), transparent 75%);
+  animation: hero-glow-in 1.6s var(--ease-out) both;
+}
+
+/* ───────────── motion ───────────── */
+.rise {
+  animation: hero-rise 0.9s var(--ease-out) both;
+  animation-delay: var(--d, 0s);
+}
+.fade-up {
+  animation: fade-in-up 0.8s var(--ease-out) both;
+  animation-delay: var(--d, 0s);
+}
+.product-in {
+  animation: hero-product-in 1.2s var(--ease-out) 0.7s both;
+}
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  filter: blur(4px);
+  transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out), filter 0.8s var(--ease-out);
+  transition-delay: var(--d, 0s);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+.pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: blink 1s steps(1) infinite;
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--surface-2) 25%, #1d2321 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: scan-shimmer 1.6s linear infinite;
+}
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgb(0 185 126 / 0.18), transparent);
+  animation: scan-down 2.4s linear infinite;
+}
+.marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+.marquee:hover {
+  animation-play-state: paused;
+}
+
+/* demo step helpers (driven by React state) */
+.step {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.5s var(--ease-out), transform 0.5s var(--ease-out), background-color 0.5s, box-shadow 0.5s;
+}
+.step.on {
+  opacity: 1;
+  transform: none;
+}
+
+details.faq > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.faq > summary::-webkit-details-marker {
+  display: none;
+}
+details.faq .faq-icon {
+  transition: transform 0.35s var(--ease-out);
+}
+details.faq[open] .faq-icon {
+  transform: rotate(45deg);
+}
+details.faq .faq-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s var(--ease-out);
+}
+details.faq[open] .faq-body {
+  grid-template-rows: 1fr;
+}
+details.faq .faq-body > div {
+  overflow: hidden;
+}
+
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+}
+@keyframes hero-rise {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(8px);
+  }
+}
+@keyframes hero-glow-in {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.6);
+  }
+}
+@keyframes hero-product-in {
+  0% {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(24px) scale(0.97);
+  }
+}
+@keyframes scan-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+@keyframes gradient-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.8);
+  }
+}
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes scan-down {
+  0% {
+    top: -40%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0s !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
 }
