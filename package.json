@@ -1,0 +1,18 @@
+{
+  "name": "agent-db",
+  "version": "0.1.0",
+  "description": "Shared lesson ledger for AI agents, backed by Supabase.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4"
+  }
+}
