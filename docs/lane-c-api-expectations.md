@@ -57,9 +57,9 @@ These come from the 17 Oct pilot (`data/pilot/`, report in airjan-airlines/grave
 Injecting every note for a site took success **down** from 21% to 12%, and tasks that passed without notes
 regressed. So:
 
-- Keep the 0.75 floor and the empty-list rule exactly as in §06. Returning nothing beats returning something
+- Use the 0.55 floor (re-calibrated for MiniLM, below) and the empty-list rule exactly as in §06. Returning nothing beats returning something
   irrelevant.
-- Agents should call lookup with **k = 2** (the demo and the graveyard shim both default to 2).
+- Agents should call lookup with **k = 1** (the demo and the graveyard shim both default to 1).
 - Before `contribute` persists Reflect's text, reject anything that leaks an answer: prices, dates, multi-digit
   numbers from the task's answer, form numbers. The pilot's check is `src/kb/writer.py` in the experiment repo.
 
@@ -81,6 +81,11 @@ assumed. A note written from a task's own failure scores 0.46–0.84, and is the
 nearly every case. Notes for other tasks on the same site mostly score below 0.55. At 0.75, only usps_03 and
 irs_02 retrieve anything.
 
+**Decision: floor 0.55, k = 1** (now in PRD §06). Ten of the 14 tasks that have their own note retrieve it,
+two irrelevant notes get through, and the controls (irs_01, usps_02, nps_01) retrieve nothing. Of the
+final-run "Use" tasks, usps_03, bart_01, bart_02, irs_02 and dmv_01 retrieve their note; nps_02 (0.53) does
+not. k = 1 keeps usps_03 from also getting the ZIP-lookup note (0.56).
+
 ## Demo orchestration (what `lib/demo/index.ts` needs from `lib/loop`)
 
 In live mode, `startDemo` returns a 501 until this is wired up. Lane C needs three async calls from Lane A's
@@ -100,7 +105,7 @@ panel polls `getRun` to show progress, so it needs the id early. The test-double
 ## Final live-site test (graveyard harness)
 
 `integrations/graveyard/ledger_retrieve.py` is a drop-in for the experiment's `retrieve()` that calls
-`POST /api/lookup` with k = 2. To run the with-product condition:
+`POST /api/lookup` with k = 1. To run the with-product condition:
 
 1. Seed the ledger with the frozen notes (`npx tsx scripts/pilot-notes-to-lessons.ts`, then embed and insert
    through Lane A's path).

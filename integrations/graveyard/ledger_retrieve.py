@@ -15,7 +15,7 @@ not receive contributions during the evaluation (freeze it first).
 Stdlib only. Config via env:
   LEDGER_API  base URL of the ledger API (default http://localhost:3000/api;
               use .../api/test-double to hit the UI's test double)
-  LEDGER_K    max lessons per task (default 2, per the pilot finding)
+  LEDGER_K    max lessons per task (default 1, per the pilot finding)
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import urllib.request
 from typing import Any
 
 DEFAULT_API = "http://localhost:3000/api"
-DEFAULT_K = 2
+DEFAULT_K = 1
 TIMEOUT_S = 20
 
 

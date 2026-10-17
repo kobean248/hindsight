@@ -19,8 +19,8 @@ import {
   setRetrieved,
 } from "@/lib/test-double/store";
 
-/** §07 lookup k for the demo; the pilot showed 1–2 notes beat "everything for the site". */
-export const DEMO_LOOKUP_K = 2;
+/** §06 agent-facing k: one lesson. The pilot showed extra notes derail tasks (scripts/calibrate-floor.ts). */
+export const DEMO_LOOKUP_K = 1;
 
 export function startTestDoubleDemo(taskId: string, stepDelayMs = 900): { demo: DemoState; done: Promise<DemoState> } {
   const scenario = SCENARIOS[taskId];

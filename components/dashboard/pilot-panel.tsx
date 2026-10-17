@@ -1,4 +1,5 @@
 import { PILOT, PILOT_SOURCE, type Prop } from "@/lib/pilot/results";
+import { RELEVANCE_FLOOR } from "@/lib/ui/config";
 import { compact, pct } from "@/lib/ui/format";
 import { Card } from "@/components/ui";
 
@@ -49,7 +50,7 @@ export function PilotPanel() {
           {kb.regressions.map((r) => r.task_id).join(", ")}. Irrelevant notes derailed tasks that passed without them.
         </p>
         <p className="mt-2 text-muted">
-          That is why this ledger&apos;s lookup drops anything under 0.75 similarity and returns at most 1–2 lessons. Returning
+          That is why this ledger&apos;s lookup drops anything under {RELEVANCE_FLOOR} similarity and returns at most one lesson. Returning
           nothing beats returning something irrelevant.
         </p>
       </div>

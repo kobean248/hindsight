@@ -50,7 +50,7 @@ describe("lookup (all-MiniLM-L6-v2)", () => {
   it("returns only the matching note for a site, not every note", async () => {
     const hits = await lookup("usps.com", "find the nearest post office and its Saturday retail hours");
     expect(hits.map((h) => h.id)).toEqual(["kb_000015"]);
-    expect(hits[0].similarity).toBeGreaterThanOrEqual(0.75);
+    expect(hits[0].similarity).toBeGreaterThanOrEqual(RELEVANCE_FLOOR);
   });
 });
 
@@ -128,7 +128,8 @@ describe("scripted usps_03 scenario", () => {
     const tr = getRun(end.transfer_run_id!);
     expect(tr.run.verified_success).toBe(true);
     expect(tr.retrieved_lessons.length).toBeGreaterThan(0);
-    expect(tr.retrieved_lessons.length).toBeLessThanOrEqual(2);
+    expect(tr.retrieved_lessons).toHaveLength(1);
+    expect(tr.retrieved_lessons[0].id).toBe(end.lesson_id);
     expect(tr.applied_lessons.every((a) => a.verification_status === "verified_success")).toBe(true);
 
     const lesson = getLesson(end.lesson_id!);

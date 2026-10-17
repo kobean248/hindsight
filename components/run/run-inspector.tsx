@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { api } from "@/lib/ui/api-client";
 import { durationMs, when } from "@/lib/ui/format";
-import { failureStep, isSettled } from "@/lib/ui/run-view";
+import { diagnosisOf, failureStep, isSettled } from "@/lib/ui/run-view";
 import { usePolling } from "@/lib/ui/use-polling";
 import { RunStatusBadge } from "@/components/status";
 import { Badge, Card, ErrorState, LoadingState, PageHeader } from "@/components/ui";
@@ -52,7 +52,7 @@ export function RunInspector({ id }: { id: string }) {
       {error && <ErrorState error={error} onRetry={refresh} />}
       <div className="space-y-6">
         <Verdict data={data} />
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className={`grid gap-6 ${diagnosisOf(data) || data.created_lesson ? "lg:grid-cols-2" : ""}`}>
           <RetrievedLessons data={data} />
           <DiagnosisPanel data={data} />
         </div>

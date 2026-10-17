@@ -1,7 +1,7 @@
 /**
  * How well does a relevance floor separate useful lessons from irrelevant ones
  * under all-MiniLM-L6-v2? Scores each pilot task against every same-site pilot
- * note and counts, per floor at k = 2, how many tasks get the note written from
+ * note and counts, per floor at k (default 2, override with K=1), how many tasks get the note written from
  * their own failure ("own") and how many irrelevant notes get through.
  *
  *   npx tsx scripts/calibrate-floor.ts

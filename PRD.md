@@ -329,11 +329,11 @@ confidence = ( p̂ + z²/(2n) − z·√( p̂(1−p̂)/n + z²/(4n²) ) ) / (1 +
 **Ranking (locked formula).** `lookup(domain, task_description, k)`:
 1. Embed `task_description` with `all-MiniLM-L6-v2`.
 2. Compute cosine similarity against `task_embedding` for all `active` lessons in `domain`.
-3. **Relevance threshold: discard any lesson with similarity < 0.75** — regardless of confidence. A highly confident but semantically unrelated lesson must never be forced into context.
+3. **Relevance threshold: discard any lesson with similarity < 0.55** — regardless of confidence. *(Was 0.75, an OpenAI-embedding default; re-calibrated 17 Oct for all-MiniLM-L6-v2 against the pilot's tasks and notes with `scripts/calibrate-floor.ts`: at 0.55 / k = 1, 10 of 14 tasks retrieve the lesson from their own failure and every control task retrieves nothing.)* A highly confident but semantically unrelated lesson must never be forced into context.
 4. Among the survivors, `rank_score = 0.7 × similarity + 0.3 × confidence`.
-5. Return the top `k` by `rank_score`. If zero lessons clear the threshold, **return an empty list** — never backfill with the "closest" irrelevant match.
+5. Return the top `k` by `rank_score` (agents call with **k = 1**: the pilot showed every extra note is a chance to derail the task). If zero lessons clear the threshold, **return an empty list** — never backfill with the "closest" irrelevant match.
 
-(0.75 / 0.7–0.3 / 0.92 are the MVP defaults, tunable post-hackathon — but
+(0.55 / 0.7–0.3 / 0.92 are the MVP defaults, tunable post-hackathon — but
 fixed and implemented as written for this build, not left to the coding
 agent's judgment.)
 

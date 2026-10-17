@@ -4,7 +4,8 @@
  */
 import type { LessonApplication } from "@/lib/ui/contracts";
 
-export const RELEVANCE_FLOOR = 0.75;
+/** Calibrated for all-MiniLM-L6-v2 on the pilot tasks (scripts/calibrate-floor.ts). */
+export const RELEVANCE_FLOOR = 0.55;
 export const DEDUP_THRESHOLD = 0.92;
 export const W_SIMILARITY = 0.7;
 export const W_CONFIDENCE = 0.3;

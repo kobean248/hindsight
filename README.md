@@ -69,7 +69,7 @@ the pilot benchmark. **Lessons** (`/lessons`, `/lessons/:id`). **Run Inspector**
 ### Demo procedure (PRD §10)
 
 1. Overview → **Run demo**. Round 1 runs the baseline with no lessons, Round 2 has Reflect write a lesson from
-   the evaluator-confirmed failure, and Round 3 runs a fresh agent with only what `lookup` returns (k = 2).
+   the evaluator-confirmed failure, and Round 3 runs a fresh agent with only what `lookup` returns (floor 0.55, k = 1).
 2. Click **Compare baseline vs transfer** to see both traces, the transferred lesson, the agent's claims and
    the raw evaluator evidence side by side.
 3. During rehearsal, record a fallback pair:
