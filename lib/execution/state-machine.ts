@@ -1,4 +1,4 @@
-import type { ErrorCode, RunStatus, TerminalRunStatus } from "./types.js";
+import type { ErrorCode, RunStatus, TerminalRunStatus } from "./types";
 
 export const TERMINAL_STATUSES: readonly TerminalRunStatus[] = [
   "succeeded",

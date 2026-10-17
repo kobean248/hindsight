@@ -1,5 +1,5 @@
-import { TestExecutionAdapter, type TestExecutionAdapterOptions } from "./test-adapter.js";
-import type { ExecutionAdapter, RunStore } from "./types.js";
+import { TestExecutionAdapter, type TestExecutionAdapterOptions } from "./test-adapter";
+import type { ExecutionAdapter, RunStore } from "./types";
 
 export const ADAPTER_KINDS = ["test", "freestyle"] as const;
 export type AdapterKind = (typeof ADAPTER_KINDS)[number];

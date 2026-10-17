@@ -6,7 +6,7 @@ import {
   mapEvaluatorResult,
   mapStopReason,
   type StopReason,
-} from "../index.js";
+} from "../index";
 
 const ALL_STOP_REASONS: StopReason[] = ["finish", "step_budget", "run_timeout", "llm_timeout", "llm_error"];
 

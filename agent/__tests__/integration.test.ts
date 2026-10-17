@@ -17,12 +17,12 @@ import {
   type EvaluatorResult,
   type Lesson,
   type TraceEvent,
-} from "../../lib/execution/index.js";
-import type { ChatCompletionRequest, GroqLike } from "../groq-client.js";
-import { runAgent, type RunAgentOptions } from "../loop.js";
-import { NOTES_CLOSE, NOTES_OPEN } from "../prompt.js";
-import { ADD_SELECTOR, PRODUCT_URL, REQUIRED_OPTION_ERROR, SHOP_HOME, SIZE_SELECTOR, makeFakeShop } from "./fake-shop.js";
-import { hangUntilAborted, httpError, reply, scriptedGroq, toolCall } from "./helpers.js";
+} from "../../lib/execution/index";
+import type { ChatCompletionRequest, GroqLike } from "../groq-client";
+import { runAgent, type RunAgentOptions } from "../loop";
+import { NOTES_CLOSE, NOTES_OPEN } from "../prompt";
+import { ADD_SELECTOR, PRODUCT_URL, REQUIRED_OPTION_ERROR, SHOP_HOME, SIZE_SELECTOR, makeFakeShop } from "./fake-shop";
+import { hangUntilAborted, httpError, reply, scriptedGroq, toolCall } from "./helpers";
 
 const TASK_ID = "fake.shop.add-shorts";
 const INTENT = "Add the running shorts, size M, to the cart.";

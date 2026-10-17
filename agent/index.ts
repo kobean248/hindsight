@@ -1,4 +1,4 @@
-export { runAgent, type RunAgentOptions, type RunAgentResult, type StopReason } from "./loop.js";
+export { runAgent, type RunAgentOptions, type RunAgentResult, type StopReason } from "./loop";
 export {
   createGroqClient,
   resolveModel,
@@ -8,7 +8,7 @@ export {
   type ChatCompletionResponse,
   type LlmMessage,
   type LlmToolCall,
-} from "./groq-client.js";
+} from "./groq-client";
 export {
   toolSchemas,
   executeTool,
@@ -20,11 +20,11 @@ export {
   type ToolOptions,
   type ToolResult,
   type ToolSchema,
-} from "./tools.js";
+} from "./tools";
 export {
   buildSystemPrompt,
   buildReferenceNotesBlock,
   buildInitialMessages,
   fenceObservation,
   sanitizeUntrusted,
-} from "./prompt.js";
+} from "./prompt";

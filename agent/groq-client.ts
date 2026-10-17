@@ -4,7 +4,7 @@
  */
 import Groq from "groq-sdk";
 
-import type { ToolSchema } from "./tools.js";
+import type { ToolSchema } from "./tools";
 
 export interface LlmToolCall {
   id: string;

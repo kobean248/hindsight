@@ -1,5 +1,5 @@
-import { getFixture, type FixtureName } from "./fixtures/index.js";
-import { isTerminal } from "./state-machine.js";
+import { getFixture, type FixtureName } from "./fixtures/index";
+import { isTerminal } from "./state-machine";
 import {
   ExecutionError,
   type ErrorCode,
@@ -9,7 +9,7 @@ import {
   type RunStatus,
   type RunStore,
   type TraceEvent,
-} from "./types.js";
+} from "./types";
 
 export type ErrorScenario = Exclude<ErrorCode, "task_failed">;
 export type TestScenario = FixtureName | ErrorScenario;

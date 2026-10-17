@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryRunStore } from "../../lib/execution/memory-run-store.js";
-import type { Lesson, TraceEvent } from "../../lib/execution/types.js";
-import { runAgent, type RunAgentOptions } from "../loop.js";
-import { NOTES_CLOSE, NOTES_OPEN, NUDGE_MESSAGE, OBSERVATION_CLOSE } from "../prompt.js";
+import { MemoryRunStore } from "../../lib/execution/memory-run-store";
+import type { Lesson, TraceEvent } from "../../lib/execution/types";
+import { runAgent, type RunAgentOptions } from "../loop";
+import { NOTES_CLOSE, NOTES_OPEN, NUDGE_MESSAGE, OBSERVATION_CLOSE } from "../prompt";
 import {
   hangUntilAborted,
   httpError,
@@ -13,7 +13,7 @@ import {
   toolCall,
   type FakePage,
   type ScriptStep,
-} from "./helpers.js";
+} from "./helpers";
 
 afterEach(() => vi.unstubAllEnvs());
 

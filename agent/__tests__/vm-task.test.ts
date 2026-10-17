@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { validateHttpUrl } from "../tools.js";
+import { validateHttpUrl } from "../tools";
 
 const TASK_PATH = fileURLToPath(new URL("../../vm/task.json", import.meta.url));
 

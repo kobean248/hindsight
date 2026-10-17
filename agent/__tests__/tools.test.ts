@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { describeAction, executeTool, parseToolArguments, toolSchemas, TOOL_NAMES } from "../tools.js";
-import { makeFakePage } from "./helpers.js";
+import { describeAction, executeTool, parseToolArguments, toolSchemas, TOOL_NAMES } from "../tools";
+import { makeFakePage } from "./helpers";
 
 describe("tool schemas", () => {
   it("declares exactly the six tools in OpenAI function format", () => {

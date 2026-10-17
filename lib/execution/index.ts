@@ -1,7 +1,7 @@
-export * from "./types.js";
-export * from "./state-machine.js";
-export * from "./outcome.js";
-export * from "./memory-run-store.js";
-export * from "./test-adapter.js";
-export * from "./factory.js";
-export { fixtures, getFixture, type FixtureName, type RunFixture } from "./fixtures/index.js";
+export * from "./types";
+export * from "./state-machine";
+export * from "./outcome";
+export * from "./memory-run-store";
+export * from "./test-adapter";
+export * from "./factory";
+export { fixtures, getFixture, type FixtureName, type RunFixture } from "./fixtures/index";

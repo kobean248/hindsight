@@ -12,9 +12,9 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright-core";
 
-import { MemoryRunStore } from "../lib/execution/memory-run-store.js";
-import type { Lesson } from "../lib/execution/types.js";
-import { runAgent } from "./loop.js";
+import { MemoryRunStore } from "../lib/execution/memory-run-store";
+import type { Lesson } from "../lib/execution/types";
+import { runAgent } from "./loop";
 
 function usage(): never {
   console.error(

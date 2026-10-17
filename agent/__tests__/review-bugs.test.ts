@@ -6,10 +6,10 @@
 import { APIConnectionTimeoutError, APIUserAbortError } from "groq-sdk";
 import { describe, expect, it } from "vitest";
 
-import { MemoryRunStore } from "../../lib/execution/memory-run-store.js";
-import { runAgent, type RunAgentOptions } from "../loop.js";
-import { sanitizeUntrusted } from "../prompt.js";
-import { makeFakePage, scriptedGroq, type ScriptStep } from "./helpers.js";
+import { MemoryRunStore } from "../../lib/execution/memory-run-store";
+import { runAgent, type RunAgentOptions } from "../loop";
+import { sanitizeUntrusted } from "../prompt";
+import { makeFakePage, scriptedGroq, type ScriptStep } from "./helpers";
 
 async function run(steps: ScriptStep[], overrides: Partial<RunAgentOptions> = {}) {
   const store = new MemoryRunStore();

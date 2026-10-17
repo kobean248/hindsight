@@ -9,8 +9,8 @@
  *    blocks that carry no authority, and fence markers inside them are
  *    neutralized so content can't close its own fence.
  */
-import type { Lesson } from "../lib/execution/types.js";
-import { truncate } from "./tools.js";
+import type { Lesson } from "../lib/execution/types";
+import { truncate } from "./tools";
 
 export const NOTES_OPEN = "<<<UNTRUSTED_REFERENCE_NOTES>>>";
 export const NOTES_CLOSE = "<<<END_UNTRUSTED_REFERENCE_NOTES>>>";

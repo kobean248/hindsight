@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Lesson } from "../../lib/execution/types.js";
+import type { Lesson } from "../../lib/execution/types";
 import {
   buildInitialMessages,
   buildReferenceNotesBlock,
@@ -11,7 +11,7 @@ import {
   OBSERVATION_CLOSE,
   OBSERVATION_OPEN,
   sanitizeUntrusted,
-} from "../prompt.js";
+} from "../prompt";
 
 const lesson = (over: Partial<Lesson> = {}): Lesson => ({
   id: "l1",

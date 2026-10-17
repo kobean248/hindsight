@@ -5,7 +5,7 @@ import type {
   ChatCompletionResponse,
   GroqLike,
   LlmToolCall,
-} from "../groq-client.js";
+} from "../groq-client";
 
 export interface FakePageHooks {
   click?: (selector: string) => Promise<void>;

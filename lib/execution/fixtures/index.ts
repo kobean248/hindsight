@@ -1,4 +1,4 @@
-import type { EvaluatorResult, TraceEvent } from "../types.js";
+import type { EvaluatorResult, TraceEvent } from "../types";
 
 import baselineFailEvaluator from "./baseline_fail.evaluator.json" with { type: "json" };
 import baselineFailTrace from "./baseline_fail.trace.json" with { type: "json" };

@@ -5,7 +5,7 @@
  */
 import type { Page } from "playwright-core";
 
-import type { EvaluatorResult } from "../../lib/execution/types.js";
+import type { EvaluatorResult } from "../../lib/execution/types";
 
 export const SHOP_HOME = "http://shop.test/";
 export const PRODUCT_URL = "http://shop.test/running-shorts";

@@ -3,7 +3,7 @@
  * sections 07 and 08). Adapters use these instead of re-deciding statuses
  * and error codes ad hoc. Nothing here ever produces `verified_success`.
  */
-import type { ErrorCode, EvaluatorResult, TerminalRunStatus } from "./types.js";
+import type { ErrorCode, EvaluatorResult, TerminalRunStatus } from "./types";
 
 /** Why `runAgent` stopped (agent/loop.ts re-exports this). */
 export type StopReason = "finish" | "step_budget" | "run_timeout" | "llm_timeout" | "llm_error";

@@ -4,7 +4,7 @@
 Status: Draft — hackathon scope
 Date: 2026-10-17
 Horizon: Single hackathon build
-Stack (locked): Next.js (web + API routes + MCP server) · Supabase/Postgres + pgvector · OpenAI `text-embedding-3-small` (1536-dim) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator · MCP (Streamable HTTP, `/api/mcp`)
+Stack (locked): Next.js (web + API routes + MCP server) · Supabase/Postgres + pgvector · `all-MiniLM-L6-v2` embeddings (384-dim, local) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator · MCP (Streamable HTTP, `/api/mcp`)
 
 A shared memory layer so that when one AI agent learns something the hard
 way, every other agent that hits the same task starts from the lesson
@@ -201,9 +201,16 @@ HTTP/MCP request.
 not a fallback, not a "swap later." One database, one connection string,
 everywhere.
 
-**Locked: embedding model.** `text-embedding-3-small` (OpenAI), 1536
-dimensions, called server-side with the same model for both indexing a
-stored `task_pattern` and embedding an incoming `lookup` query — a lookup
+**Locked: embedding model.** `all-MiniLM-L6-v2` (sentence-transformers),
+384 dimensions, L2-normalised, run **in-process on the server** via
+transformers.js (`Xenova/all-MiniLM-L6-v2`, `lib/embeddings/minilm.ts`) —
+no API key and no network call after the one-time model download. It is
+the model the pilot experiment used (graveyard-experiment), so similarity
+scores are comparable with that data. *(Changed 17 Oct from OpenAI
+`text-embedding-3-small`/1536 by the team; the existing `vector(1536)`
+column needs a Lane A migration to `vector(384)`.)* The same model is used
+for both indexing a stored `task_pattern` and embedding an incoming
+`lookup` query — a lookup
 embedded with a different model or dimension than the stored vectors isn't
 a worse match, it's a type error, so this is a hard rule, not a
 preference. The `embedding_model` column below exists specifically so a
@@ -218,8 +225,8 @@ future model change can't silently mix incompatible vectors in one index.
 | `id` | uuid pk | |
 | `domain` | text | e.g. `"webarena.shopping"` |
 | `task_pattern` | text | normalized task description |
-| `task_embedding` | vector(1536) | from `text-embedding-3-small` |
-| `embedding_model` | text | `"text-embedding-3-small"` — guards against silent model drift |
+| `task_embedding` | vector(384) | from `all-MiniLM-L6-v2` |
+| `embedding_model` | text | `"all-MiniLM-L6-v2"` — guards against silent model drift |
 | `lesson_text` | text, nullable | the fix, written by Reflect |
 | `root_cause` | text, nullable | why the originating run failed |
 | `success_criteria` | text, nullable | human-readable restatement of what the evaluator checks |
@@ -320,13 +327,13 @@ confidence = ( p̂ + z²/(2n) − z·√( p̂(1−p̂)/n + z²/(4n²) ) ) / (1 +
 - The run that originally produced a lesson (the failure Reflect diagnosed) is never itself recorded as an application of that lesson — it's the `agent_runs` row Reflect read, not a `lesson_applications` row.
 
 **Ranking (locked formula).** `lookup(domain, task_description, k)`:
-1. Embed `task_description` with `text-embedding-3-small`.
+1. Embed `task_description` with `all-MiniLM-L6-v2`.
 2. Compute cosine similarity against `task_embedding` for all `active` lessons in `domain`.
-3. **Relevance threshold: discard any lesson with similarity < 0.75** — regardless of confidence. A highly confident but semantically unrelated lesson must never be forced into context.
+3. **Relevance threshold: discard any lesson with similarity < 0.55** — regardless of confidence. *(Was 0.75, an OpenAI-embedding default; re-calibrated 17 Oct for all-MiniLM-L6-v2 against the pilot's tasks and notes with `scripts/calibrate-floor.ts`: at 0.55 / k = 1, 10 of 14 tasks retrieve the lesson from their own failure and every control task retrieves nothing.)* A highly confident but semantically unrelated lesson must never be forced into context.
 4. Among the survivors, `rank_score = 0.7 × similarity + 0.3 × confidence`.
-5. Return the top `k` by `rank_score`. If zero lessons clear the threshold, **return an empty list** — never backfill with the "closest" irrelevant match.
+5. Return the top `k` by `rank_score` (agents call with **k = 1**: the pilot showed every extra note is a chance to derail the task). If zero lessons clear the threshold, **return an empty list** — never backfill with the "closest" irrelevant match.
 
-(0.75 / 0.7–0.3 / 0.92 are the MVP defaults, tunable post-hackathon — but
+(0.55 / 0.7–0.3 / 0.92 are the MVP defaults, tunable post-hackathon — but
 fixed and implemented as written for this build, not left to the coding
 agent's judgment.)
 
@@ -343,6 +350,7 @@ agent's judgment.)
 | `recordOutcome` | internal | `application_id, verified_result` | updated `{ times_applied, times_succeeded, confidence }` — `verified_result` is only ever a value the orchestrator itself got back from calling `verify`, never a caller-supplied value |
 | `getRun` | HTTP only | `run_id` | full run row + its `run_events`, retrieved lessons, applied lessons |
 | `getDashboard` | HTTP only | optional filters | aggregated, **actually queried** metrics — never fabricated/placeholder numbers |
+| `listLessons` *(proposed, Lane C)* | HTTP only | optional `domain`, `status` | `{ lessons, domains }` — Screen B's domain/status filter (§09); `lookup` can't serve it because it's a thresholded similarity search |
 
 `reflect`, `recordApplication`, and the raw `verify` call are internal
 orchestrator functions, never exposed to the frontend or to any MCP
@@ -358,6 +366,14 @@ mid-task needs to call.
 Only `queued`/`running` may transition forward; terminal states don't
 transition again. Every `failed`/`timed_out` run has a non-null
 `error_code`.
+
+**TBD, owner: Lane A, flagged by Lane C:** `reflect` takes a `failed`
+run with `verified_success = false`, i.e. a run that executed cleanly and
+was graded a failure — but the rule above requires a non-null
+`error_code`, and every listed code is an infrastructure fault. Either
+allow a null `error_code` when `verified_success = false`, or add
+`evaluator_failed` to the code list. The UI renders both; the test double
+currently uses `failed` + null. Details: `docs/lane-c-api-expectations.md`.
 
 **Idempotency (binding):** `recordApplication` always creates a new
 `application_id` — that id is the idempotency key for `recordOutcome`.

@@ -14,7 +14,7 @@ import {
   type RunStatus,
   type TestScenario,
   type TraceEvent,
-} from "../index.js";
+} from "../index";
 
 const ZERO_DELAYS = { queuedMs: 0, vmReadyMs: 0, stepMs: 0, evaluatorMs: 0 };
 const TASK_ID = "webarena.shopping.TBD";

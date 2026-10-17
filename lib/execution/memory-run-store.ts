@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { assertTransition, isTerminal } from "./state-machine.js";
+import { assertTransition, isTerminal } from "./state-machine";
 import type {
   CreateRunInput,
   ErrorCode,
@@ -10,7 +10,7 @@ import type {
   RunStore,
   SetStatusOptions,
   TraceEvent,
-} from "./types.js";
+} from "./types";
 
 /** Mirrors an `agent_runs` row (PRD section 05). */
 export interface MemoryRunRow {

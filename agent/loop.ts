@@ -10,8 +10,8 @@
  */
 import type { Page } from "playwright-core";
 
-import type { StopReason } from "../lib/execution/outcome.js";
-import type { Lesson, RunStore, TraceEvent } from "../lib/execution/types.js";
+import type { StopReason } from "../lib/execution/outcome";
+import type { Lesson, RunStore, TraceEvent } from "../lib/execution/types";
 import {
   createGroqClient,
   resolveModel,
@@ -19,8 +19,8 @@ import {
   type GroqLike,
   type LlmMessage,
   type LlmToolCall,
-} from "./groq-client.js";
-import { buildInitialMessages, fenceObservation, NUDGE_MESSAGE } from "./prompt.js";
+} from "./groq-client";
+import { buildInitialMessages, fenceObservation, NUDGE_MESSAGE } from "./prompt";
 import {
   describeAction,
   executeTool,
@@ -29,7 +29,7 @@ import {
   truncate,
   type ToolOptions,
   type ToolResult,
-} from "./tools.js";
+} from "./tools";
 
 export type { StopReason };
 

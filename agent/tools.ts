@@ -7,7 +7,7 @@
  */
 import type { Page } from "playwright-core";
 
-import type { TraceEventType } from "../lib/execution/types.js";
+import type { TraceEventType } from "../lib/execution/types";
 
 export const TOOL_NAMES = ["navigate", "click", "fill", "select", "screenshot", "finish"] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];

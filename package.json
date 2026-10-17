@@ -3,16 +3,17 @@
   "version": "0.1.0",
   "description": "Shared lesson ledger for AI agents, backed by Supabase.",
   "type": "module",
-  "main": "src/index.ts",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts && vitest run",
-    "agent:smoke": "tsx agent/smoke.ts"
+    "test": "tsx --test tests/scoring.test.ts tests/record-outcome.test.ts && vitest run",
+    "agent:smoke": "tsx agent/smoke.ts",
+    "capture-pair": "tsx scripts/capture-recorded-pair.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@supabase/supabase-js": "^2.45.4",
     "groq-sdk": "^1.6.0",
@@ -23,9 +24,11 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^20.14.9",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "tailwindcss": "4.3.3",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4",
     "vitest": "^3.2.7"
