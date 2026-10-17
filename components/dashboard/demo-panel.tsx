@@ -43,7 +43,13 @@ function writeLastDemo(id: string) {
   }
 }
 
-export function DemoPanel() {
+export interface RecordedSummary {
+  name: string;
+  captured_at: string;
+  source: "live" | "test_double";
+}
+
+export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
   const [tasks, setTasks] = useState<{ task_id: string; domain: string; instruction: string }[] | null>(null);
   const [taskId, setTaskId] = useState<string>("");
   const [demoId, setDemoId] = useState<string | null>(null);
@@ -160,6 +166,23 @@ export function DemoPanel() {
           </span>
         </div>
       )}
+      <div className="mt-4 border-t border-border pt-3 text-sm">
+        <span className="font-medium">Recorded fallback: </span>
+        {recorded.length === 0 ? (
+          <span className="text-muted">
+            none captured yet. Record a rehearsal pair with <code className="font-mono text-xs">npm run capture-pair</code> (PRD §10).
+          </span>
+        ) : (
+          <span className="inline-flex flex-wrap gap-x-3 gap-y-1">
+            {recorded.map((r) => (
+              <Link key={r.name} href={`/runs/recorded/${r.name}`} className="text-accent hover:underline">
+                {r.name}
+                <span className="ml-1 text-xs text-muted">({r.source === "live" ? "recorded live" : "recorded test double"})</span>
+              </Link>
+            ))}
+          </span>
+        )}
+      </div>
       {demo?.source === "test_double" && (
         <p className="mt-3 text-xs text-warn">This demo ran against the scripted test double, not a live agent.</p>
       )}
