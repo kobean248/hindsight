@@ -11,15 +11,15 @@ import { startTestDoubleDemo } from "./test-double-loop";
 
 export class DemoUnavailable extends Error {}
 
-export function demoTasks(): { task_id: string; domain: string; instruction: string }[] {
-  if (DATA_SOURCE === "live") return [];
-  return Object.values(SCENARIOS).map(({ task_id, domain, instruction }) => ({ task_id, domain, instruction }));
-}
-
 function liveNotWired(): never {
   throw new DemoUnavailable(
     "Live demo needs Lane A's loop orchestrator (lib/loop) and Lane B's real ExecutionAdapter, which are not merged into this build yet.",
   );
+}
+
+export function demoTasks(): { task_id: string; domain: string; instruction: string }[] {
+  if (DATA_SOURCE === "live") liveNotWired();
+  return Object.values(SCENARIOS).map(({ task_id, domain, instruction }) => ({ task_id, domain, instruction }));
 }
 
 export function startDemo(taskId?: string): DemoState {
