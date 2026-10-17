@@ -6,6 +6,7 @@ at commit `842b762` ("Add pilot results: baseline + KB rerun on Groq gpt-oss-120
 - `kb_notes.json` — the 17 frozen KB notes (`out/kb_notes.json`), written automatically from baseline
   failures. Seed set for the ledger's lessons; the test double loads them, and
   `scripts/pilot-notes-to-lessons.ts` maps them to the PRD §05 `lessons` shape.
+- `tasks.json` — id, site and instruction of the 24 pilot tasks (`tasks/tasks.yaml`), for `scripts/calibrate-floor.ts`.
 - `results.json` — the `baseline`, `failures`, `waste`, `kb_effect`, `judge_validation` and `kb` sections
   of `out/results.json`. Read by the Overview screen's "Pilot benchmark" panel.
 

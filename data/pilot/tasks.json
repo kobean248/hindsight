@@ -1,0 +1,122 @@
+[
+ {
+  "id": "flights_01",
+  "site": "google.com/travel/flights",
+  "instruction": "Find the cheapest nonstop round-trip economy flight for 1 adult from San Francisco (SFO) to Seattle (SEA), departing {date:first_friday_next_month} and returning {date:first_friday_next_month+2}. Report the airline and the round-trip price. Do not book.\n"
+ },
+ {
+  "id": "flights_02",
+  "site": "google.com/travel/flights",
+  "instruction": "Find the earliest-departing one-way flight for 1 adult from Oakland (OAK) to Los Angeles (LAX) on {date:next_tuesday}. Report its departure time and airline. Do not book.\n"
+ },
+ {
+  "id": "flights_03",
+  "site": "google.com/travel/flights",
+  "instruction": "Search round-trip economy flights for 1 adult from San Francisco (SFO) to Seattle (SEA), departing {date:first_friday_next_month} and returning {date:first_friday_next_month+2}. Use the site's bags filter so that prices include 1 carry-on bag, then report the cheapest option's airline and price. Do not book.\n"
+ },
+ {
+  "id": "bart_01",
+  "site": "bart.gov",
+  "instruction": "Use the BART trip planner to find a trip from Downtown Berkeley station to SFO (San Francisco International Airport) station departing at 9:00 AM on {date:next_wednesday}. Report the departure time of the first trip shown and the number of transfers.\n"
+ },
+ {
+  "id": "bart_02",
+  "site": "bart.gov",
+  "instruction": "Find the regular adult (Clipper) one-way fare on BART from Downtown Berkeley to Embarcadero. Report the fare.\n"
+ },
+ {
+  "id": "bart_03",
+  "site": "bart.gov",
+  "instruction": "Find BART's elevator status / elevator outage page and report whether any elevator outage is currently listed for MacArthur station.\n"
+ },
+ {
+  "id": "irs_01",
+  "site": "irs.gov",
+  "instruction": "On IRS.gov, find the form number of the form a taxpayer files to request a transcript of their tax return by mail or fax. Report the form number.\n"
+ },
+ {
+  "id": "irs_02",
+  "site": "irs.gov",
+  "instruction": "On IRS.gov, find the current standard mileage rate for business use of a vehicle. Report the rate and the year it applies to.\n"
+ },
+ {
+  "id": "dmv_01",
+  "site": "dmv.ca.gov",
+  "instruction": "On the California DMV website, find the page about renewing a standard (non-commercial) driver's license and report, in one sentence, the conditions under which a driver is eligible to renew online. Also report the renewal fee if the site lists it.\n"
+ },
+ {
+  "id": "usps_01",
+  "site": "usps.com",
+  "instruction": "Use USPS's ZIP Code lookup to find the ZIP Code for the address 1 Dr Carlton B Goodlett Place, San Francisco, CA (San Francisco City Hall). Report the 5-digit ZIP Code.\n"
+ },
+ {
+  "id": "usps_02",
+  "site": "usps.com",
+  "instruction": "Find the current retail price of a Priority Mail Flat Rate Small Box on USPS.com. Report the price.\n"
+ },
+ {
+  "id": "usps_03",
+  "site": "usps.com",
+  "instruction": "Use USPS's Find a Post Office tool to find the post office nearest to ZIP Code 94704 and report its name and its Saturday retail hours.\n"
+ },
+ {
+  "id": "rei_01",
+  "site": "rei.com",
+  "instruction": "On REI.com, find the REI Co-op Rainier Rain Jacket for men. Select size M and color Black (if Black is not offered, say so and pick any color). Report the price and whether that size/color is available to ship online.\n"
+ },
+ {
+  "id": "rei_02",
+  "site": "rei.com",
+  "instruction": "On REI.com, list women's hiking boots and apply filters for waterproof, women's size 8, and price under $150. Report how many results the filtered list shows.\n"
+ },
+ {
+  "id": "rei_03",
+  "site": "rei.com",
+  "instruction": "On REI.com, add one REI Co-op Flash 22 Pack (any color) to the cart, then open the cart page and STOP. Do not check out. Report the item and price shown in the cart.\n"
+ },
+ {
+  "id": "allrecipes_01",
+  "site": "allrecipes.com",
+  "instruction": "On Allrecipes, open the \"Best Chocolate Chip Cookies\" recipe. Use the recipe's own servings/scale control to scale it to 48 servings, then report the amount of butter in the scaled ingredient list.\n"
+ },
+ {
+  "id": "allrecipes_02",
+  "site": "allrecipes.com",
+  "instruction": "On Allrecipes, find a vegetarian lasagna recipe whose total time is under 2 hours. Report the recipe name and its total time.\n"
+ },
+ {
+  "id": "allrecipes_03",
+  "site": "allrecipes.com",
+  "instruction": "On Allrecipes, open the \"World's Best Lasagna\" recipe and report how many ratings it has.\n"
+ },
+ {
+  "id": "opentable_01",
+  "site": "opentable.com",
+  "instruction": "On OpenTable, find a table for 2 people in Berkeley, CA on {date:next_saturday} at 7:00 PM at any Italian restaurant. Click an available time slot to reach the booking details page, then STOP before entering any details or completing the reservation. Report the restaurant and the time slot.\n"
+ },
+ {
+  "id": "opentable_02",
+  "site": "opentable.com",
+  "instruction": "On OpenTable, list three restaurants in Berkeley, CA that have availability for 4 people on {date:next_friday} at around 6:30 PM. Report the three restaurant names. Do not book.\n"
+ },
+ {
+  "id": "opentable_03",
+  "site": "opentable.com",
+  "instruction": "On OpenTable, open the page for Rivoli Restaurant in Berkeley, CA, start a reservation for 2 people on {date:next_friday} at any available evening time, and report the cancellation policy shown during the reservation flow. Stop before entering any personal details.\n"
+ },
+ {
+  "id": "nps_01",
+  "site": "nps.gov",
+  "instruction": "On NPS.gov, find the current entrance fee for a private vehicle at Yosemite National Park. Report the fee and how long the pass is valid.\n"
+ },
+ {
+  "id": "nps_02",
+  "site": "nps.gov",
+  "instruction": "On NPS.gov, find out whether Tioga Road (Highway 120 through Yosemite) is currently open. Report its current status as stated by the park.\n"
+ },
+ {
+  "id": "recgov_01",
+  "site": "recreation.gov",
+  "instruction": "On Recreation.gov, check availability at Upper Pines Campground in Yosemite for 1 night, arriving {date:next_saturday}. Report whether any campsite is available that night. Do not reserve.\n"
+ }
+]
