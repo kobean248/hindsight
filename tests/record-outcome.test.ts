@@ -10,11 +10,12 @@ import {
   recordOutcomeFromCaller,
   setExecutionAdapter,
 } from "../lib/loop/operations";
-import { localHashEmbedding, LOCAL_EMBEDDING_MODEL } from "../lib/scoring/embed";
+import { EMBEDDING_DIMENSIONS, EMBEDDING_MODEL } from "../lib/scoring/constants";
 
 process.env.LEDGER_STORE = "memory";
 
-const embedding = localHashEmbedding("select a size before add to cart");
+const embedding = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
+embedding[0] = 1;
 
 beforeEach(() => {
   resetMemoryStore();
@@ -33,7 +34,7 @@ async function seedApplication() {
     domain: "webarena.shopping",
     task_pattern: "select a size before add to cart",
     task_embedding: embedding,
-    embedding_model: LOCAL_EMBEDDING_MODEL,
+    embedding_model: EMBEDDING_MODEL,
   });
   await setCreatedLessonId(origin.id, lesson.id);
   const later = await insertAgentRun({

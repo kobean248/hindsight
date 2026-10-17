@@ -7,9 +7,8 @@ serves the HTTP routes, the MCP server, and the dashboard. All three call
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in the Supabase URL and service
-   role key. `OPENAI_API_KEY` turns on `text-embedding-3-small`. Without it
-   the process uses a local 1536-d hash and stores `embedding_model` as
-   `local-hash-1536`. `MCP_ACCESS_TOKEN` is required for `/api/mcp`.
+   role key. Embeddings are in-process all-MiniLM-L6-v2 (384-d); the model
+   downloads once on first use. `MCP_ACCESS_TOKEN` is required for `/api/mcp`.
 2. Install dependencies: `npm install`
 3. Apply migrations: `supabase link --project-ref <ref>` then `supabase db push`
 4. For a process-local store with no database, set `LEDGER_STORE=memory`.

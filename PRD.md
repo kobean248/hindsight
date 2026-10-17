@@ -206,9 +206,9 @@ everywhere.
 transformers.js (`Xenova/all-MiniLM-L6-v2`, `lib/embeddings/minilm.ts`) —
 no API key and no network call after the one-time model download. It is
 the model the pilot experiment used (graveyard-experiment), so similarity
-scores are comparable with that data. *(Changed 17 Oct from OpenAI
-`text-embedding-3-small`/1536 by the team; the existing `vector(1536)`
-column needs a Lane A migration to `vector(384)`.)* The same model is used
+scores are comparable with that data. *(Changed 17 Oct from OpenAI `text-embedding-3-small`/1536. Stored
+vectors are `vector(384)`; older 1536-d rows are cleared because they
+are a different model.)* The same model is used
 for both indexing a stored `task_pattern` and embedding an incoming
 `lookup` query — a lookup
 embedded with a different model or dimension than the stored vectors isn't

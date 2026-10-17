@@ -16,6 +16,7 @@
     "@huggingface/transformers": "4.3.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@supabase/supabase-js": "^2.45.4",
+    "freestyle": "^0.2.20",
     "groq-sdk": "^1.6.0",
     "next": "^16.4.2",
     "playwright-core": "^1.64.1",

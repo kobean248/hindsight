@@ -69,8 +69,8 @@ PRD §05 now locks `all-MiniLM-L6-v2` (384-dim, normalised), run in-process with
 `embed()` / `cosine()` from `lib/embeddings/minilm.ts` for both indexing and lookup. Don't add a second
 embedding path. The test double already does this. What Lane A needs to do:
 
-- A new migration that changes `lessons.task_embedding` from `vector(1536)` to `vector(384)`. The existing
-  migration is already applied to the live project, so don't edit it.
+- `supabase/migrations/20261017231000_minilm_embeddings.sql` changes `lessons.task_embedding` from `vector(1536)` to `vector(384)` and clears the old vectors. The earlier
+  migration is already applied, so don't edit it.
 - `embedding_model = 'all-MiniLM-L6-v2'` on every row.
 - `next.config.ts` keeps `@huggingface/transformers` and `onnxruntime-node` external. The first call downloads
   the model (~90 MB) into `node_modules`, so warm it up before the demo.

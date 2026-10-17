@@ -40,7 +40,7 @@ export interface Ranked<T> {
 }
 
 /**
- * Active lessons in `domain`, embedded with `embeddingModel`, similarity >= 0.75,
+ * Active lessons in `domain`, embedded with `embeddingModel`, similarity >= 0.55,
  * ordered by 0.7 * similarity + 0.3 * confidence. Empty when nothing clears the floor.
  */
 export function rankLessons<T extends RankableLesson>(

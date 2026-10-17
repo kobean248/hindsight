@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ExecutionError,
+  FreestyleExecutionAdapter,
   MemoryRunStore,
   TERMINAL_STATUSES,
   TestExecutionAdapter,
@@ -255,10 +256,12 @@ describe("createExecutionAdapter", () => {
     expect(adapter).toBeInstanceOf(TestExecutionAdapter);
   });
 
-  it("freestyle throws not yet implemented", () => {
-    expect(() =>
-      createExecutionAdapter({ store: new MemoryRunStore(), env: { EXECUTION_ADAPTER: "freestyle" } }),
-    ).toThrow(/not yet implemented/);
+  it("freestyle builds the real adapter", () => {
+    const adapter = createExecutionAdapter({
+      store: new MemoryRunStore(),
+      env: { EXECUTION_ADAPTER: "freestyle" },
+    });
+    expect(adapter).toBeInstanceOf(FreestyleExecutionAdapter);
   });
 
   it("rejects unknown values", () => {

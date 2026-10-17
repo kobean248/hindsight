@@ -1,3 +1,4 @@
+import { FreestyleExecutionAdapter } from "./freestyle-adapter";
 import { TestExecutionAdapter, type TestExecutionAdapterOptions } from "./test-adapter";
 import type { ExecutionAdapter, RunStore } from "./types";
 
@@ -16,11 +17,7 @@ type AdapterFactory = (options: CreateExecutionAdapterOptions) => ExecutionAdapt
 
 const FACTORIES: Record<AdapterKind, AdapterFactory> = {
   test: ({ store, test }) => new TestExecutionAdapter(store, test),
-  freestyle: () => {
-    throw new Error(
-      'EXECUTION_ADAPTER=freestyle is not yet implemented (FreestyleExecutionAdapter is pending in Lane B). Use EXECUTION_ADAPTER=test.',
-    );
-  },
+  freestyle: ({ store, env }) => new FreestyleExecutionAdapter(store, { env }),
 };
 
 export function resolveAdapterKind(value: string | undefined): AdapterKind {

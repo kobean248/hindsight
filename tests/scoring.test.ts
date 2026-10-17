@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { countsFromStatuses, wilsonLowerBound } from "../lib/scoring/confidence";
 import { findDuplicate } from "../lib/scoring/dedup";
-import { localHashEmbedding } from "../lib/scoring/embed";
+import { EMBEDDING_DIMENSIONS, EMBEDDING_MODEL } from "../lib/scoring/constants";
+import { embedTaskText } from "../lib/scoring/embed";
 import { cosineSimilarity, rankLessons } from "../lib/scoring/ranking";
 import type { VerificationStatus } from "../lib/db/types";
 
 function vectorAt(cosine: number): number[] {
   const orthogonal = Math.sqrt(Math.max(0, 1 - cosine * cosine));
-  const values = new Array<number>(1536).fill(0);
+  const values = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
   values[0] = cosine;
   values[1] = orthogonal;
   return values;
@@ -21,7 +22,7 @@ function lesson(id: string, cosine: number, confidence = 0) {
     id,
     domain: "webarena.shopping",
     status: "active",
-    embedding_model: "text-embedding-3-small",
+    embedding_model: EMBEDDING_MODEL,
     task_embedding: vectorAt(cosine),
     confidence,
     task_pattern: id,
@@ -56,12 +57,12 @@ describe("wilson confidence", () => {
 });
 
 describe("ranking", () => {
-  it("drops similarity 0.74 and keeps 0.76", () => {
+  it("drops similarity 0.54 and keeps 0.56", () => {
     const ranked = rankLessons(
-      [lesson("low", 0.74, 1), lesson("high", 0.76, 0)],
+      [lesson("low", 0.54, 1), lesson("high", 0.56, 0)],
       "webarena.shopping",
       QUERY,
-      "text-embedding-3-small",
+      EMBEDDING_MODEL,
       5
     );
     assert.deepEqual(
@@ -70,12 +71,12 @@ describe("ranking", () => {
     );
   });
 
-  it("returns an empty list when nothing clears 0.75", () => {
+  it("returns an empty list when nothing clears 0.55", () => {
     const ranked = rankLessons(
-      [lesson("low", 0.74, 1)],
+      [lesson("low", 0.54, 1)],
       "webarena.shopping",
       QUERY,
-      "text-embedding-3-small",
+      EMBEDDING_MODEL,
       5
     );
     assert.deepEqual(ranked, []);
@@ -86,7 +87,7 @@ describe("ranking", () => {
       [lesson("similar", 0.8, 0), lesson("proven", 0.76, 1)],
       "webarena.shopping",
       QUERY,
-      "text-embedding-3-small",
+      EMBEDDING_MODEL,
       5
     );
     assert.equal(ranked[0]?.lesson.id, "proven");
@@ -103,14 +104,13 @@ describe("dedup", () => {
   });
 });
 
-describe("local embedding", () => {
-  it("matches a paraphrase and rejects an unrelated sentence", () => {
-    const left = localHashEmbedding(
-      "choose the medium size before adding the shirt to the cart"
-    );
-    const close = localHashEmbedding("choose medium size before adding shirt to cart");
-    const far = localHashEmbedding("weather forecast for seattle tomorrow");
-    assert.ok(cosineSimilarity(left, close) >= 0.75);
-    assert.ok(cosineSimilarity(left, far) < 0.75);
+describe("minilm embedding", () => {
+  it("matches a paraphrase and rejects an unrelated sentence", async () => {
+    const left = (await embedTaskText("choose the medium size before adding the shirt to the cart")).embedding;
+    const close = (await embedTaskText("choose medium size before adding shirt to cart")).embedding;
+    const far = (await embedTaskText("weather forecast for seattle tomorrow")).embedding;
+    assert.equal(left.length, EMBEDDING_DIMENSIONS);
+    assert.ok(cosineSimilarity(left, close) >= 0.55);
+    assert.ok(cosineSimilarity(left, far) < 0.55);
   });
 });
