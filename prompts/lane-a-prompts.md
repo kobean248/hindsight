@@ -40,8 +40,11 @@ Before writing anything, do this:
 4. Report back, in writing, before touching any files:
    - Your understanding of Lane A's exact scope and directory ownership
      (`supabase/migrations/*`, `lib/db/*`, `lib/scoring/*`, `lib/loop/*`,
-     `app/api/lookup`, `app/api/contribute`, `app/api/get-run`,
-     `app/api/get-dashboard`).
+     `app/api/lookup`, `app/api/contribute`, `app/api/get-lesson`,
+     `app/api/get-run`, `app/api/get-dashboard`, `app/api/mcp/*`). Note
+     that PRD §04 locks the MCP server as MVP, not optional — it's the
+     only way an external agent (as opposed to the dashboard) can call
+     this system at all.
    - A plain-English restatement of the confidence formula and the
      ranking formula from §06, in your own words, so I can check you
      read them correctly before you implement them.
@@ -191,34 +194,76 @@ move on.
 
 ---
 
-## Prompt 6 — `lookup` / `contribute` route handlers
+## Prompt 6 — `lookup` / `contribute` / `getLesson` route handlers
 
 ```
-Implement app/api/lookup and app/api/contribute as thin Next.js route
-handlers — request validation and HTTP concerns only, all actual logic
-delegated to lib/db and lib/scoring from the last two prompts.
+Implement app/api/lookup, app/api/contribute, and app/api/get-lesson as
+thin Next.js route handlers — request validation and HTTP concerns only,
+all actual logic delegated to lib/db and lib/scoring from the last two
+prompts.
 
 Plan first:
-- Request/response shapes for both routes, matching PRD §07's table
+- Request/response shapes for all three routes, matching PRD §07's table
   exactly (lookup: domain, task_description, k → ranked lessons with
   similarity/confidence/rank_score; contribute: domain, task_pattern,
-  outcome, trace, optional lesson → { run_id, lesson_id? }).
+  outcome, trace, optional lesson → { run_id, lesson_id? }; getLesson:
+  lesson_id → full lesson row + success criteria + risk warnings +
+  application history).
 - Input validation: what makes a request to each route invalid, and what
   HTTP status/error body that produces. (PRD §07 requires every external
-  input validated — this is where that applies for these two routes.)
+  input validated — this is where that applies for these three routes.)
 - Where the embedding call (text-embedding-3-small, per PRD §05) actually
   happens for an incoming lookup query — state the exact function and
   confirm it's server-side only, never exposed to a client.
 
 Show me the plan, implement it, then show me a curl/fetch example
-exercising both routes against a local dev server with at least one
-seeded lesson, including the empty-result case (a query with nothing
-above the 0.75 threshold).
+exercising all three routes against a local dev server with at least one
+seeded lesson, including the empty-result case for lookup (a query with
+nothing above the 0.75 threshold) and the not-found case for getLesson.
 ```
 
 ---
 
-## Prompt 7 — Loop orchestrator + `get-run` / `get-dashboard`
+## Prompt 7 — MCP server (`lookup_lessons` / `contribute_lesson` / `get_lesson`)
+
+```
+Implement the MCP server at app/api/mcp, per PRD §04 — this is MVP, not
+stretch, because the product's whole premise is an external agent calling
+in, and HTTP alone doesn't give an MCP-native client (Claude Code, Claude
+Desktop, your own Playwright harness) a way to discover these tools.
+
+Plan first:
+- Which MCP SDK/library you're using and the exact transport setup for
+  Streamable HTTP at `/api/mcp`, inside this same Next.js app (not a
+  separate process).
+- The three tool definitions to wire now — `lookup_lessons`,
+  `contribute_lesson`, `get_lesson` — each one a thin handler calling the
+  exact same lib/db / lib/scoring functions the HTTP routes in Prompt 6
+  call. State explicitly that you are not duplicating any validation or
+  business logic between the HTTP route and the MCP tool for the same
+  operation — if you find yourself writing the lookup logic twice, stop
+  and factor it into lib/ first.
+- Input/output schemas for each tool, matching PRD §04's table (same
+  shapes as the HTTP routes).
+- Authentication for the MCP endpoint — PRD §04 says this is required
+  even for the MVP, not optional. State what mechanism you're using and
+  confirm no service-role database key or internal-only operation is
+  reachable through it.
+- `record_outcome` is NOT in scope for this prompt — it depends on the
+  loop orchestrator from Prompt 8. Don't stub it with a wrong signature
+  now; add it in Prompt 8 once `verify`/`recordOutcome` exist.
+
+Show me the plan, implement it, then connect to the running dev server
+with a real MCP client (the MCP inspector, or a short script using the
+MCP TypeScript SDK's client transport — whichever you have available),
+list the tools, and paste the result showing exactly 3 tools with their
+schemas. Then call `lookup_lessons` through MCP and through the HTTP
+route with an identical query and confirm the two responses match.
+```
+
+---
+
+## Prompt 8 — Loop orchestrator + `get-run` / `get-dashboard` + `record_outcome`
 
 ```
 Implement lib/loop/ — the orchestrator that sequences reflect →
@@ -247,10 +292,24 @@ Plan first:
   returns and confirm every number is a real query result — PRD §07 and
   the Implementation Contract both explicitly forbid placeholder/
   fabricated metrics here.
+- The MCP `record_outcome` tool from Prompt 7's deferred scope: its input
+  is ONLY `application_id` and `run_id` — PRD §04 is explicit that it
+  must not accept a client-supplied success value. State exactly how the
+  handler calls `verify()` itself and feeds that real result into
+  `recordOutcome()`, so there is no code path where a caller's claimed
+  outcome reaches the database. This is the single most important
+  correctness property in this whole prompt — a test in the next step
+  checks it directly.
 
-Show me the plan, implement it, then write and run a test that calls
-recordOutcome twice with the same application_id and asserts the second
-call doesn't change the counters — paste the result.
+Show me the plan, implement it, then write and run two tests: (1) calling
+`recordOutcome` twice with the same `application_id` and asserting the
+second call doesn't change the counters, and (2) calling the MCP
+`record_outcome` tool with a request body that tries to add a
+`success`/`verification_status` field alongside valid
+`application_id`/`run_id`, and asserting either the schema rejects the
+extra field or it's silently ignored — and either way, the counters that
+actually get recorded match the test `ExecutionAdapter`'s scripted
+evaluator result, never the injected value. Paste both results.
 ```
 
 ---
