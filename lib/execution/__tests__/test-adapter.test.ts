@@ -85,7 +85,8 @@ describe("state machine", () => {
     for (const terminal of TERMINAL_STATUSES) {
       const { runId } = await store.createRun({ taskId: TASK_ID, agentId: "a", lessonId: null });
       await store.setStatus(runId, "running");
-      await store.setStatus(runId, terminal, { errorCode: "llm_error" });
+      const needsCode = terminal === "failed" || terminal === "timed_out";
+      await store.setStatus(runId, terminal, needsCode ? { errorCode: "llm_error" } : undefined);
       for (const to of ALL_STATUSES) {
         await expect(store.setStatus(runId, to, { errorCode: "llm_error" })).rejects.toThrow();
       }

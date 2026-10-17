@@ -47,4 +47,7 @@ export function assertTransition(
   if (requiresErrorCode(to) && !errorCode) {
     throw new Error(`Run ${runId}: status ${to} requires an error_code`);
   }
+  if (errorCode && !requiresErrorCode(to)) {
+    throw new Error(`Run ${runId}: error_code is only valid on failed/timed_out, not ${to}`);
+  }
 }

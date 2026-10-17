@@ -20,7 +20,10 @@ export const OBSERVATION_CLOSE = "<<<END_UNTRUSTED_OBSERVATION>>>";
 export const MAX_NOTES_CHARS = 3_000;
 export const MAX_OBSERVATION_CHARS = 7_000;
 
-const INVISIBLE_OR_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g;
+// Includes bidi isolates (U+2066-2069) and Unicode tag characters (U+E0000-E007F), which render as
+// nothing but can carry hidden instructions to a model ("ASCII smuggling").
+const INVISIBLE_OR_CONTROL =
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff\u{e0000}-\u{e007f}]/gu;
 
 /**
  * Makes untrusted text safe to place between fence markers. All fence

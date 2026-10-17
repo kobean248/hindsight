@@ -10,6 +10,7 @@
  */
 import type { Page } from "playwright-core";
 
+import type { StopReason } from "../lib/execution/outcome.js";
 import type { Lesson, RunStore, TraceEvent } from "../lib/execution/types.js";
 import {
   createGroqClient,
@@ -30,7 +31,7 @@ import {
   type ToolResult,
 } from "./tools.js";
 
-export type StopReason = "finish" | "step_budget" | "run_timeout" | "llm_timeout" | "llm_error";
+export type { StopReason };
 
 export interface RunAgentOptions {
   page: Page;
@@ -111,8 +112,10 @@ function retryAfterMs(err: unknown): number | null {
 }
 
 function isTimeoutError(err: unknown): boolean {
+  // groq-sdk's APIConnectionTimeoutError never sets `.name` (it is "Error"), so check the class name too.
   const name = (err as { name?: string })?.name ?? "";
-  return /Timeout/i.test(name) || statusOf(err) === 408;
+  const className = (err as { constructor?: { name?: string } })?.constructor?.name ?? "";
+  return /Timeout/i.test(name) || /Timeout/i.test(className) || statusOf(err) === 408;
 }
 
 function errText(err: unknown): string {
@@ -206,6 +209,14 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
     const onRunAbort = () => ctl.abort();
     runSignal.addEventListener("abort", onRunAbort, { once: true });
     if (runSignal.aborted) ctl.abort();
+    // Race the call against our own abort so a client that ignores the signal cannot hang the run.
+    let onCtlAbort: (() => void) | undefined;
+    const abortedPromise = new Promise<never>((_, reject) => {
+      const fail = () => reject(new Error("LLM call aborted"));
+      if (ctl.signal.aborted) return fail();
+      onCtlAbort = fail;
+      ctl.signal.addEventListener("abort", fail, { once: true });
+    });
     try {
       const body: ChatCompletionRequest = {
         model,
@@ -215,7 +226,10 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
         temperature: 0,
         ...(sendParallelFlag ? { parallel_tool_calls: false as const } : {}),
       };
-      const response = await groq.chat.completions.create(body, { signal: ctl.signal });
+      const response = await Promise.race([
+        groq.chat.completions.create(body, { signal: ctl.signal }),
+        abortedPromise,
+      ]);
       const message = response.choices?.[0]?.message;
       return { ok: true, content: message?.content ?? null, toolCall: message?.tool_calls?.[0] ?? null };
     } catch (err) {
@@ -227,6 +241,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
     } finally {
       clearTimeout(timer);
       runSignal.removeEventListener("abort", onRunAbort);
+      if (onCtlAbort) ctl.signal.removeEventListener("abort", onCtlAbort);
     }
   };
 
