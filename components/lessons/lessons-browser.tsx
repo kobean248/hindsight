@@ -102,7 +102,7 @@ export function LessonsBrowser() {
             <option value="decayed">Decayed</option>
             <option value="retired">Retired</option>
           </select>
-          <button type="submit" className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white">
+          <button type="submit" className="btn btn-accent">
             Search
           </button>
         </div>

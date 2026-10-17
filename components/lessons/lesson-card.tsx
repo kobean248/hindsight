@@ -18,7 +18,7 @@ export function ConfidenceLabel({ lesson }: { lesson: Lesson }) {
 export function LessonCard({ lesson }: { lesson: Lesson | RankedLesson }) {
   const ranked = "similarity" in lesson ? lesson : null;
   return (
-    <li className="rounded-lg border border-border bg-surface p-4">
+    <li className="panel panel-hover p-5">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Badge>{lesson.domain}</Badge>
         {lesson.status !== "active" && <Badge tone="warn">{lesson.status}</Badge>}

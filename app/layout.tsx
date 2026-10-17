@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
-import { NavBar } from "@/components/nav-bar";
-import { DataSourceBanner } from "@/components/data-source-banner";
+import { Geist, Geist_Mono } from "next/font/google";
+import { AppChrome } from "@/components/app-chrome";
 import "./globals.css";
 
+const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+
 export const metadata: Metadata = {
-  title: "Agent Ledger",
-  description: "Shared lessons for AI agents, ranked by verified outcomes.",
+  title: "Agent Ledger | Shared lessons for AI agents",
+  description:
+    "A shared memory layer for AI agents. Lessons from failed runs, ranked by evaluator-verified outcomes, never by an agent's own “done”.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen">
-        <NavBar />
-        <DataSourceBanner />
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{children}</main>
+        <AppChrome>{children}</AppChrome>
       </body>
     </html>
   );

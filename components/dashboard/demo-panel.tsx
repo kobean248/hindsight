@@ -109,7 +109,7 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
           <button
             onClick={start}
             disabled={starting || running || !tasks || tasks.length === 0}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="btn btn-accent btn-sm"
           >
             {running ? "Running…" : starting ? "Starting…" : "Run demo"}
           </button>
@@ -124,21 +124,38 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
       {startError && <ErrorState error={startError} />}
       {poll.error && <ErrorState error={poll.error} onRetry={poll.refresh} />}
 
-      <ol className="grid gap-2 sm:grid-cols-3">
-        {ROUNDS.map((r) => {
+      <ol className="grid gap-3 sm:grid-cols-3">
+        {ROUNDS.map((r, i) => {
           const st = roundState(demo, r.phase);
           const border =
-            st === "active" ? "border-accent" : st === "complete" ? "border-ok/50" : st === "error" ? "border-bad/50" : "border-border";
+            st === "active" ? "border-accent/70 bg-ok-bg" : st === "complete" ? "border-ok/40" : st === "error" ? "border-bad/50 bg-bad-bg" : "border-border";
+          const dot =
+            st === "active"
+              ? "bg-accent text-[#02130c] ring-pulse"
+              : st === "complete"
+                ? "bg-ok text-[#02130c]"
+                : st === "error"
+                  ? "bg-bad text-[#1a0905]"
+                  : "border border-border-strong text-muted";
           return (
-            <li key={r.phase} className={`rounded-md border ${border} p-3`}>
-              <div className="flex items-center justify-between gap-2">
+            <li key={r.phase} className={`relative overflow-hidden rounded-xl border ${border} p-4 transition-colors duration-500`}>
+              {st === "active" && <span className="scan-line" />}
+              {i < ROUNDS.length - 1 && (
+                <span className="absolute -right-3 top-8 z-10 hidden h-px w-3 bg-border-strong sm:block" aria-hidden="true" />
+              )}
+              <div className="relative flex items-center gap-3">
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full font-mono text-xs font-semibold transition-colors duration-500 ${dot}`}>
+                  {st === "complete" ? "?" : st === "error" ? "!" : i + 1}
+                </span>
                 <span className="text-sm font-medium">{r.title}</span>
-                {st === "active" && <Badge tone="info">in progress</Badge>}
-                {st === "complete" && <Badge tone="ok">done</Badge>}
-                {st === "error" && <Badge tone="bad">stopped</Badge>}
+                <span className="ml-auto">
+                  {st === "active" && <Badge tone="info">in progress</Badge>}
+                  {st === "complete" && <Badge tone="ok">done</Badge>}
+                  {st === "error" && <Badge tone="bad">stopped</Badge>}
+                </span>
               </div>
-              <p className="mt-1 text-xs text-muted">{r.blurb}</p>
-              <div className="mt-2 text-xs">
+              <p className="relative mt-3 text-xs leading-relaxed text-muted">{r.blurb}</p>
+              <div className="relative mt-2 text-xs">
                 {r.phase === "baseline" && demo?.baseline_run_id && <RunLink id={demo.baseline_run_id}>run {demo.baseline_run_id.slice(0, 8)}</RunLink>}
                 {r.phase === "reflecting" && demo?.lesson_id && (
                   <Link className="font-mono text-accent hover:underline" href={`/lessons/${demo.lesson_id}`}>
