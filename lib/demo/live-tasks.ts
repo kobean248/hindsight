@@ -59,15 +59,59 @@ export function liveDemoTasks(env: Env = process.env): LiveDemoTask[] {
   ];
 }
 
-export function resolveLiveTask(taskId: string, startUrl: string | undefined, env: Env = process.env): ResolvedTask {
+export interface LiveTaskRequest {
+  /** What the agent should do. Blank falls back to the catalog instruction. */
+  instruction?: string;
+  /**
+   * Substring the final page URL must contain.
+   * Undefined keeps the catalog rule. Blank grades by the start URL's site.
+   */
+  successUrlIncludes?: string | null;
+}
+
+const MAX_INSTRUCTION = 2000;
+
+export function resolveLiveTask(
+  taskId: string,
+  startUrl: string | undefined,
+  env: Env = process.env,
+  request: LiveTaskRequest = {},
+): ResolvedTask {
   const task = liveDemoTasks(env).find((item) => item.task_id === taskId);
   if (!task) throw new Error(`no live task ${taskId}`);
+  if (request.instruction !== undefined && !request.instruction.trim()) throw new Error("task is required");
+  const instruction = (request.instruction?.trim() || task.instruction).slice(0, MAX_INSTRUCTION);
   const resolvedUrl = resolveStartUrl(startUrl?.trim() || task.start_url, env);
+  const urlChanged = resolvedUrl !== task.start_url;
   const config: Record<string, unknown> = {
     task_id: task.task_id,
-    intent: task.instruction,
+    intent: instruction,
     start_url: resolvedUrl,
   };
-  if (task.success_url_includes) config.ledger_check = { must_include: task.success_url_includes };
-  return { taskId: task.task_id, intent: task.instruction, startUrl: resolvedUrl, config };
+  const needle = successNeedle(task, resolvedUrl, urlChanged, request.successUrlIncludes);
+  if (needle) config.ledger_check = { must_include: needle };
+  return { taskId: task.task_id, intent: instruction, startUrl: resolvedUrl, config };
+}
+
+/** Site the lesson is filed under: the host the agent actually opens. */
+export function domainForStartUrl(startUrl: string, fallback: string): string {
+  try {
+    return new URL(startUrl).hostname || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function successNeedle(
+  task: LiveDemoTask,
+  startUrl: string,
+  urlChanged: boolean,
+  override: string | null | undefined,
+): string | null {
+  if (override === undefined) {
+    if (urlChanged) return new URL(startUrl).hostname;
+    return task.success_url_includes;
+  }
+  const typed = override?.trim() ?? "";
+  return typed || new URL(startUrl).hostname;
 }

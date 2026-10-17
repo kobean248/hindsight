@@ -58,7 +58,8 @@ export const api = {
       `${API_BASE}/lessons${qs({ domain: filters.domain, status: filters.status || undefined })}`,
     ),
   getLesson: (id: string) => request<GetLessonResponse>(`${API_BASE}/lessons/${encodeURIComponent(id)}`),
-  startDemoRun: (task_id?: string, start_url?: string) => post<DemoState>("/api/start-demo-run", { task_id, start_url }),
+  startDemoRun: (task_id?: string, start_url?: string, instruction?: string, success_url_includes?: string) =>
+    post<DemoState>("/api/start-demo-run", { task_id, start_url, instruction, success_url_includes }),
   getDemo: (id: string) => request<DemoState>(`/api/start-demo-run${qs({ id })}`),
   demoTasks: () =>
     request<{ tasks: { task_id: string; domain: string; instruction: string; start_url?: string; success_url_includes?: string | null }[] }>("/api/start-demo-run"),

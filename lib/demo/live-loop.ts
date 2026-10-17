@@ -11,10 +11,10 @@ import { ExecutionError } from "@/lib/execution/types";
 import { learnFromFailure, lookup, recordApplication, recordOutcome, setExecutionAdapter } from "@/lib/loop/operations";
 import type { DemoState } from "@/lib/ui/contracts";
 import { diagnoseWithGroq } from "./diagnose-groq";
-import { liveDemoTasks, resolveLiveTask } from "./live-tasks";
+import { domainForStartUrl, liveDemoTasks, resolveLiveTask, type LiveTaskRequest } from "./live-tasks";
 
 const demos = new Map<string, DemoState>();
-const startUrls = new Map<string, string>();
+const startedTasks = new Map<string, { task: ReturnType<typeof resolveLiveTask>; instruction: string; domain: string }>();
 let adapter: FreestyleExecutionAdapter | null = null;
 
 function liveAdapter(): FreestyleExecutionAdapter {
@@ -32,14 +32,16 @@ export function getLiveDemo(id: string): DemoState | null {
   return demo ? { ...demo } : null;
 }
 
-export async function startLiveDemo(taskId?: string, startUrl?: string): Promise<DemoState> {
+export async function startLiveDemo(taskId?: string, startUrl?: string, request: LiveTaskRequest = {}): Promise<DemoState> {
   const chosenId = taskId ?? liveDemoTasks()[0]?.task_id;
   if (!chosenId) throw new Error("no live task configured");
-  const task = resolveLiveTask(chosenId, startUrl);
+  const task = resolveLiveTask(chosenId, startUrl, process.env, request);
+  const catalog = liveDemoTasks().find((item) => item.task_id === task.taskId);
+  const domain = domainForStartUrl(task.startUrl, catalog?.domain ?? "live");
   const demo: DemoState = {
     id: randomUUID(),
     task_id: task.taskId,
-    domain: liveDemoTasks().find((item) => item.task_id === task.taskId)?.domain ?? "live",
+    domain,
     phase: "baseline",
     started_at: new Date().toISOString(),
     baseline_run_id: null,
@@ -51,7 +53,7 @@ export async function startLiveDemo(taskId?: string, startUrl?: string): Promise
   const { runId } = await liveAdapter().startResolvedRun(task);
   demo.baseline_run_id = runId;
   demos.set(demo.id, demo);
-  startUrls.set(demo.id, task.startUrl);
+  startedTasks.set(demo.id, { task, instruction: task.intent, domain });
   await insertRunEvent({
     run_id: runId,
     event_type: "lookup_skipped",
@@ -83,13 +85,17 @@ async function continueLiveDemo(demo: DemoState): Promise<void> {
     return;
   }
   demo.phase = "reflecting";
+  const started = startedTasks.get(demo.id);
+  const catalog = liveDemoTasks().find((item) => item.task_id === demo.task_id);
+  const instruction = started?.instruction ?? catalog?.instruction ?? demo.task_id;
+  const taskPattern = catalog && instruction === catalog.instruction ? demo.task_id : instruction;
   let learned: Awaited<ReturnType<typeof learnFromFailure>> | undefined;
   try {
     learned = await learnFromFailure(
       {
         runId,
         domain: demo.domain,
-        task_pattern: demo.task_id,
+        task_pattern: taskPattern,
       },
       process.env.ANTHROPIC_API_KEY?.trim() ? undefined : diagnoseWithGroq,
     );
@@ -105,14 +111,13 @@ async function continueLiveDemo(demo: DemoState): Promise<void> {
   }
   demo.lesson_id = learned.lesson_id;
   demo.phase = "transfer";
-  const catalog = liveDemoTasks().find((item) => item.task_id === demo.task_id);
   const retrieved = await lookup({
     domain: demo.domain,
-    task_description: catalog?.instruction ?? demo.task_id,
+    task_description: instruction,
     k: 1,
   });
   const applied = retrieved[0];
-  const transferTask = resolveLiveTask(demo.task_id, startUrls.get(demo.id));
+  const transferTask = started?.task ?? resolveLiveTask(demo.task_id, undefined);
   const transfer = await liveAdapter().startResolvedRun(
     transferTask,
     applied

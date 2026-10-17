@@ -15,11 +15,22 @@ export async function POST(req: Request) {
   const body = (await readJson(req)) ?? {};
   const taskId = body.task_id;
   const startUrl = body.start_url;
+  const instruction = body.instruction;
+  const success = body.success_url_includes;
   if (taskId !== undefined && taskId !== null && typeof taskId !== "string") return badRequest("task_id must be a string");
   if (startUrl !== undefined && startUrl !== null && typeof startUrl !== "string") return badRequest("start_url must be a string");
+  if (instruction !== undefined && instruction !== null && typeof instruction !== "string") return badRequest("instruction must be a string");
+  if (typeof instruction === "string" && instruction.trim().length > 2000) return badRequest("instruction must be 2000 characters or fewer");
+  if (success !== undefined && success !== null && typeof success !== "string") return badRequest("success_url_includes must be a string");
   try {
     if (taskId && !demoTasks().some((t) => t.task_id === taskId)) return badRequest(`no demo scenario for task ${taskId}`);
-    return json(await startDemo(taskId ?? undefined, typeof startUrl === "string" ? startUrl.trim() || undefined : undefined), 202);
+    return json(
+      await startDemo(taskId ?? undefined, typeof startUrl === "string" ? startUrl.trim() || undefined : undefined, {
+        instruction: typeof instruction === "string" ? instruction : undefined,
+        successUrlIncludes: success === undefined ? undefined : typeof success === "string" ? success : null,
+      }),
+      202,
+    );
   } catch (e) {
     return unavailable(e);
   }

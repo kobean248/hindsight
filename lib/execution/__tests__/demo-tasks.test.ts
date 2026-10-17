@@ -31,4 +31,24 @@ describe("live demo tasks", () => {
   it("rejects a start URL that is not http(s)", () => {
     expect(() => resolveLiveTask("wiki_ada", "file:///tmp/page")).toThrow(/http or https/);
   });
+
+  it("uses a caller-written task for a start URL they typed", () => {
+    const task = resolveLiveTask("books_travel", "https://nileshs-portfolio.vercel.app/", {}, {
+      instruction: "Open the bookstore link on this portfolio.",
+      successUrlIncludes: "/bookstore",
+    });
+    expect(task.intent).toBe("Open the bookstore link on this portfolio.");
+    expect(task.startUrl).toBe("https://nileshs-portfolio.vercel.app/");
+    expect(task.config).toMatchObject({ ledger_check: { must_include: "/bookstore" } });
+  });
+
+  it("grades a custom URL by its site when no pass text is given", () => {
+    const task = resolveLiveTask("books_travel", "https://example.com/docs", {});
+    expect(task.intent).toMatch(/Travel/);
+    expect(task.config).toMatchObject({ ledger_check: { must_include: "example.com" } });
+  });
+
+  it("rejects a blank task", () => {
+    expect(() => resolveLiveTask("wiki_ada", undefined, {}, { instruction: "  " })).toThrow(/task is required/);
+  });
 });

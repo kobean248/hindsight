@@ -61,6 +61,8 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
   const [tasks, setTasks] = useState<DemoTaskOption[] | null>(null);
   const [taskId, setTaskId] = useState<string>("");
   const [startUrl, setStartUrl] = useState<string>("");
+  const [instruction, setInstruction] = useState<string>("");
+  const [successIncludes, setSuccessIncludes] = useState<string>("");
   const [demoId, setDemoId] = useState<string | null>(null);
   const [startError, setStartError] = useState<Error | null>(null);
   const [starting, setStarting] = useState(false);
@@ -72,6 +74,8 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
         setTasks(r.tasks);
         setTaskId(r.tasks[0]?.task_id ?? "");
         setStartUrl(r.tasks[0]?.start_url ?? "");
+        setInstruction(r.tasks[0]?.instruction ?? "");
+        setSuccessIncludes(r.tasks[0]?.success_url_includes ?? "");
       })
       .catch((e: Error) => setStartError(e));
     setDemoId(readLastDemo());
@@ -87,7 +91,11 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
     setStarting(true);
     setStartError(null);
     try {
-      const d = await api.startDemoRun(taskId || undefined, startUrl.trim() || undefined);
+      const preset = tasks?.find((item) => item.task_id === taskId);
+      const customUrl = preset?.start_url !== undefined && startUrl.trim() !== preset.start_url;
+      const success =
+        preset?.success_url_includes === null && !successIncludes.trim() && !customUrl ? undefined : successIncludes.trim();
+      const d = await api.startDemoRun(taskId || undefined, startUrl.trim() || undefined, instruction.trim(), success);
       writeLastDemo(d.id);
       setDemoId(d.id);
     } catch (e) {
@@ -109,8 +117,11 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
               value={taskId}
               onChange={(e) => {
                 const nextId = e.target.value;
+                const next = tasks.find((item) => item.task_id === nextId);
                 setTaskId(nextId);
-                setStartUrl(tasks.find((item) => item.task_id === nextId)?.start_url ?? "");
+                setStartUrl(next?.start_url ?? "");
+                setInstruction(next?.instruction ?? "");
+                setSuccessIncludes(next?.success_url_includes ?? "");
               }}
               className="rounded border border-border bg-surface px-2 py-1 text-sm"
               disabled={running}
@@ -122,7 +133,7 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
           )}
           <button
             onClick={start}
-            disabled={starting || running || !tasks || tasks.length === 0}
+            disabled={starting || running || !tasks || tasks.length === 0 || !instruction.trim()}
             className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {running ? "Running…" : starting ? "Starting…" : "Run demo"}
@@ -133,23 +144,55 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
       {task && (
         <div className="mb-3 space-y-2 text-sm text-muted">
           <p>
-            <span className="font-mono text-xs">{task.task_id}</span> on {task.domain}: {task.instruction}
+            <span className="font-mono text-xs">{task.task_id}</span> on {task.domain}
           </p>
           {task.start_url !== undefined && (
-            <label className="block text-xs">
-              Start URL
-              <input
-                value={startUrl}
-                onChange={(e) => setStartUrl(e.target.value)}
-                disabled={running}
-                spellCheck={false}
-                className="mt-1 w-full rounded border border-border bg-surface px-2 py-1 font-mono text-xs"
-              />
-            </label>
+            <>
+              <label className="block text-xs">
+                Task for the agent
+                <textarea
+                  value={instruction}
+                  onChange={(e) => setInstruction(e.target.value)}
+                  disabled={running}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="What should the agent do on this page?"
+                  className="mt-1 w-full rounded border border-border bg-surface px-2 py-1 text-xs"
+                />
+              </label>
+              <label className="block text-xs">
+                Start URL
+                <input
+                  value={startUrl}
+                  onChange={(e) => {
+                    const nextUrl = e.target.value;
+                    setStartUrl(nextUrl);
+                    if (nextUrl.trim() !== task.start_url && successIncludes === (task.success_url_includes ?? "")) {
+                      setSuccessIncludes("");
+                    }
+                  }}
+                  disabled={running}
+                  spellCheck={false}
+                  className="mt-1 w-full rounded border border-border bg-surface px-2 py-1 font-mono text-xs"
+                />
+              </label>
+              <label className="block text-xs">
+                Passes when the final page URL contains
+                <input
+                  value={successIncludes}
+                  onChange={(e) => setSuccessIncludes(e.target.value)}
+                  disabled={running}
+                  spellCheck={false}
+                  placeholder="optional, for example /contact"
+                  className="mt-1 w-full rounded border border-border bg-surface px-2 py-1 font-mono text-xs"
+                />
+              </label>
+              {!successIncludes.trim() && startUrl.trim() !== task.start_url && (
+                <p className="text-xs">Blank passes when the browser is on the site in the start URL.</p>
+              )}
+            </>
           )}
-          {task.success_url_includes && (
-            <p className="text-xs">Passes when the final page URL contains <span className="font-mono">{task.success_url_includes}</span>.</p>
-          )}
+          {task.start_url === undefined && <p>{instruction}</p>}
         </div>
       )}
       {startError && <ErrorState error={startError} />}
