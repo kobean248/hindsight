@@ -145,6 +145,12 @@ export class MemoryStore {
     return run;
   }
 
+  async saveRunTrace(id: string, trace: TraceEvent[]): Promise<AgentRun> {
+    const run = this.requireRun(id);
+    run.trace = trace;
+    return run;
+  }
+
   async setVerifiedSuccess(id: string, verifiedSuccess: boolean): Promise<AgentRun> {
     const run = this.requireRun(id);
     run.verified_success = verifiedSuccess;

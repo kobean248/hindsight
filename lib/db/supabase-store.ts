@@ -211,6 +211,13 @@ export const supabaseStore = {
     return runFromRow(data as Row);
   },
 
+  async saveRunTrace(id: string, trace: TraceEvent[]): Promise<AgentRun> {
+    const data = await expect(
+      await supabase().from("agent_runs").update({ trace }).eq("id", id).select("*").single()
+    );
+    return runFromRow(data as Row);
+  },
+
   async setVerifiedSuccess(id: string, verifiedSuccess: boolean): Promise<AgentRun> {
     const data = await expect(
       await supabase()

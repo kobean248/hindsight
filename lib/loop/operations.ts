@@ -10,6 +10,8 @@ import { getLessonById, getLessonsByIds, insertLesson, listActiveLessons } from 
 import { getDashboard as queryDashboard } from "../db/read-model";
 import { insertRunEvent, listRunEvents } from "../db/run-events";
 import type { AgentRun, Dashboard, DashboardFilter, Lesson, LessonApplication, LessonScore, RankedLesson, TerminalVerification, TraceEvent } from "../db/types";
+import { dbRunStore } from "../db/run-store";
+import { createExecutionAdapter } from "../execution/factory";
 import type { ExecutionAdapter } from "../execution/types";
 import { findDuplicate } from "../scoring/dedup";
 import { embedTaskText } from "../scoring/embed";
@@ -221,7 +223,7 @@ export function setExecutionAdapter(adapter: ExecutionAdapter | null): void {
 
 export function getExecutionAdapter(): ExecutionAdapter {
   if (!executionAdapter) {
-    throw new LedgerError(503, "ExecutionAdapter is not configured");
+    executionAdapter = createExecutionAdapter({ store: dbRunStore });
   }
   return executionAdapter;
 }

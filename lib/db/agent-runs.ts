@@ -17,6 +17,10 @@ export async function updateRunStatus(
   return getStore().updateRunStatus(id, status, patch);
 }
 
+export async function saveRunTrace(id: string, trace: TraceEvent[]): Promise<AgentRun> {
+  return getStore().saveRunTrace(id, trace);
+}
+
 export async function setVerifiedSuccess(id: string, verifiedSuccess: boolean): Promise<AgentRun> {
   return getStore().setVerifiedSuccess(id, verifiedSuccess);
 }

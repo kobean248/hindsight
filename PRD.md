@@ -454,6 +454,40 @@ evaluator_unavailable, db_error}` — surfaced verbatim in the Run Inspector
 - Page content, trace content, and retrieved `lesson_text` are **untrusted input** — they are never concatenated into a system prompt in a way that could override instructions or authorize an action the task didn't ask for (basic prompt-injection hygiene for anything scraped from a live page).
 - A disposable VM bounds *resource* blast radius; it does not bound what a malicious page could do to the benchmark account itself, so benchmark accounts carry no real-world value or access.
 
+### Lane B contract notes (proposed — pending team ack)
+
+Raised by Lane B per the team-split rule (contract changes get recorded
+here, not worked around). **None of these is locked until Lanes A and C
+ack it**; until then the locked text above still wins on any conflict.
+
+1. **Groq replaces Anthropic Claude for the agent runtime.** The agent
+   loop calls Groq tool-use, model set by `GROQ_MODEL` (default
+   `openai/gpt-oss-120b`), key in `GROQ_API_KEY`, server-side only — it
+   never enters the VM. This changes the stack line at the top of this
+   doc. Reflect likely moves to the same provider ("same provider" rule
+   above), which affects Lane A.
+2. **`screenshot()` returns text, not an image.** Groq models are
+   text-only, so the tool returns Playwright's accessibility snapshot of
+   the page. A PNG may be saved as an optional artifact, so
+   `screenshot_ref` in the trace format **may be `null`** for the MVP.
+   The trace shape itself is unchanged.
+3. **`RunStore` is injected into adapter constructors.** Both adapters
+   take a `RunStore` (`createRun`, `appendEvent`, `setStatus`,
+   `saveTrace`) and write `agent_runs` / `run_events` through it. Lane A
+   implements it over `lib/db`; Lane B ships an in-memory one for tests.
+   The `ExecutionAdapter` interface signature is unchanged.
+4. **Repo layout.** Lane B code lives in `lib/execution/*` and `agent/*`.
+   `tsconfig.json` drops `rootDir: "src"` and adds `lib` and `agent` to
+   `include` (NodeNext, `.js` import suffixes); Lane C's Next.js scaffold
+   will touch the same file, so that change needs coordinating with
+   Lane C.
+5. **A `failed` run with no infrastructure error has no valid
+   `error_code`.** Reflect requires a `failed` run with
+   `verified_success = false`, and every `failed` run must carry an
+   `error_code` — but the locked list only names infrastructure errors.
+   Proposed: add `task_failed` for "ran cleanly, evaluator returned
+   `passed: false`". The test double uses it today.
+
 ## 09 · Frontend specification
 
 Three screens. Live updates via **polling `getRun`/`getDashboard` every 2
