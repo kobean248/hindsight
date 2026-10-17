@@ -37,6 +37,46 @@ async function setup(steps: ScriptStep[], overrides: Partial<RunAgentOptions> = 
 const finishStep = (summary = "all done") => reply([toolCall("finish", { summary })]);
 
 describe("runAgent happy path", () => {
+  it("runs a finish call Groq reported as name=finish", async () => {
+    const err = Object.assign(
+      new Error(
+        String.raw`HTTP 400: attempted to call tool 'name=finish' "failed_generation":"{\"name\": \"name=finish\", \"arguments\": {\"summary\":\"opened travel\"}}"`,
+      ),
+      { status: 400 },
+    );
+    const { run, fake } = await setup([err]);
+    const res = await run();
+    expect(res.stopReason).toBe("finish");
+    expect(res.finishSummary).toBe("opened travel");
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("keeps going when Groq cannot parse a plain-text generation", async () => {
+    const err = Object.assign(
+      new Error(
+        String.raw`HTTP 400: {"error":{"message":"Parsing failed. The model generated output that could not be parsed.","code":"output_parse_failed","failed_generation":"We need to view home page content to locate bookstore link."}}`,
+      ),
+      { status: 400 },
+    );
+    const { run } = await setup([err, finishStep("done")]);
+    const res = await run();
+    expect(res.stopReason).toBe("finish");
+    expect(res.finishSummary).toBe("done");
+  });
+
+  it("treats a commentary call as a note and keeps going", async () => {
+    const { run, fake } = await setup([
+      reply([toolCall("commentary", { summary: "looking at the page" })]),
+      reply([toolCall("json", { summary: "still looking" })]),
+      finishStep("done"),
+    ]);
+    const res = await run();
+    expect(res.stopReason).toBe("finish");
+    expect(res.trace).toHaveLength(1);
+    expect(res.trace[0]?.type).toBe("finish");
+    expect(fake.calls).toEqual([]);
+  });
+
   it("navigate -> select -> click -> finish", async () => {
     const lesson: Lesson = {
       id: "l1",
@@ -91,7 +131,16 @@ describe("runAgent happy path", () => {
     expect(first.model).toBe("test-model");
     expect(first.tool_choice).toBe("auto");
     expect(first.parallel_tool_calls).toBe(false);
-    expect(first.tools.map((t) => t.function.name)).toHaveLength(6);
+    expect(first.tools.map((t) => t.function.name)).toEqual([
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "screenshot",
+      "finish",
+      "commentary",
+      "json",
+    ]);
 
     // Lesson is a fenced user message, never in the system prompt.
     const [sys, ...rest] = first.messages;

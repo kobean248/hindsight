@@ -6,7 +6,7 @@ import {
   listApplicationsForRun,
   recordLessonOutcome,
 } from "../db/lesson-applications";
-import { getLessonById, getLessonsByIds, insertLesson, listActiveLessons } from "../db/lessons";
+import { getLessonById, getLessonsByIds, insertLesson, listActiveLessons, listLessons as listAllLessons } from "../db/lessons";
 import { getDashboard as queryDashboard } from "../db/read-model";
 import { insertRunEvent, listRunEvents } from "../db/run-events";
 import type { AgentRun, Dashboard, DashboardFilter, Lesson, LessonApplication, LessonScore, RankedLesson, TerminalVerification, TraceEvent } from "../db/types";
@@ -127,6 +127,51 @@ export interface LessonDetail {
   application_history: LessonApplication[];
 }
 
+const LESSON_STATUSES = new Set(["active", "decayed", "retired"]);
+
+/** Drop the embedding vector and guarantee the fields the lessons screens read. */
+function publicLesson(lesson: Lesson) {
+  const { task_embedding: _embedding, embedding_model, ...rest } = lesson;
+  return { ...rest, embedding_model: embedding_model ?? "" };
+}
+
+export async function listLessons(raw: unknown = {}): Promise<{ lessons: ReturnType<typeof publicLesson>[]; domains: string[] }> {
+  const input = raw && typeof raw === "object" ? (raw as { domain?: unknown; status?: unknown }) : {};
+  const domain = typeof input.domain === "string" && input.domain.trim() ? input.domain.trim() : undefined;
+  const status = typeof input.status === "string" && input.status.trim() ? input.status.trim() : undefined;
+  if (status && !LESSON_STATUSES.has(status)) {
+    throw new LedgerError(400, "status must be one of active, decayed, retired");
+  }
+  const all = await listAllLessons();
+  const lessons = all
+    .filter((lesson) => (!domain || lesson.domain === domain) && (!status || lesson.status === status))
+    .sort((a, b) => b.confidence - a.confidence || b.updated_at.localeCompare(a.updated_at))
+    .map(publicLesson);
+  return { lessons, domains: [...new Set(all.map((lesson) => lesson.domain))].sort() };
+}
+
+/** Lesson detail in the shape Screen B reads: the lesson plus each application's run. */
+export async function getLessonPage(lessonId: string): Promise<{
+  lesson: ReturnType<typeof publicLesson>;
+  applications: (LessonApplication & { task_id: string; agent_id: string; run_status: string })[];
+}> {
+  const lesson = await getLessonById(lessonId);
+  if (!lesson) throw new LedgerError(404, "lesson not found");
+  const applications = await listApplicationsForLesson(lesson.id);
+  const withRuns = await Promise.all(
+    applications.map(async (application) => {
+      const run = await getAgentRunById(application.run_id);
+      return {
+        ...application,
+        task_id: run?.task_id ?? "",
+        agent_id: run?.agent_id ?? "",
+        run_status: run?.status ?? "failed",
+      };
+    }),
+  );
+  return { lesson: publicLesson(lesson), applications: withRuns };
+}
+
 export async function getLesson(raw: unknown): Promise<LessonDetail> {
   const input = parseWith(lessonIdSchema, raw);
   const lesson = await getLessonById(input.lesson_id);
@@ -140,12 +185,15 @@ export async function getLesson(raw: unknown): Promise<LessonDetail> {
   };
 }
 
+type PublicLesson = ReturnType<typeof publicLesson>;
+
 export interface RunDetail {
   run: AgentRun;
+  events: Awaited<ReturnType<typeof listRunEvents>>;
   run_events: Awaited<ReturnType<typeof listRunEvents>>;
-  retrieved_lessons: Lesson[];
-  created_lesson: Lesson | null;
-  applied_lessons: LessonApplication[];
+  retrieved_lessons: (PublicLesson & { similarity: number; rank_score: number })[];
+  created_lesson: PublicLesson | null;
+  applied_lessons: (LessonApplication & { lesson: PublicLesson | null })[];
 }
 
 export async function getRun(raw: unknown): Promise<RunDetail> {
@@ -158,13 +206,48 @@ export async function getRun(raw: unknown): Promise<RunDetail> {
     run.created_lesson_id ? getLessonById(run.created_lesson_id) : Promise.resolve(null),
     listApplicationsForRun(run.id),
   ]);
+  const scores = lookupScores(events);
+  const retrievedLessons = retrieved.map((lesson) => {
+    const score = scores.get(lesson.id);
+    const similarity = score?.similarity ?? 0;
+    return {
+      ...publicLesson(lesson),
+      similarity,
+      rank_score: score?.rank_score ?? 0.7 * similarity + 0.3 * lesson.confidence,
+    };
+  });
+  const appliedLessonRows = await getLessonsByIds(applied.map((application) => application.lesson_id));
+  const lessonById = new Map(appliedLessonRows.map((lesson) => [lesson.id, publicLesson(lesson)]));
   return {
     run,
+    events,
     run_events: events,
-    retrieved_lessons: retrieved,
-    created_lesson: created,
-    applied_lessons: applied,
+    retrieved_lessons: retrievedLessons,
+    created_lesson: created ? publicLesson(created) : null,
+    applied_lessons: applied.map((application) => ({
+      ...application,
+      lesson: lessonById.get(application.lesson_id) ?? null,
+    })),
   };
+}
+
+function lookupScores(events: { event_type: string; payload: unknown }[]): Map<string, { similarity: number; rank_score: number }> {
+  const scores = new Map<string, { similarity: number; rank_score: number }>();
+  for (const event of events) {
+    if (event.event_type !== "lookup" || !event.payload || typeof event.payload !== "object") continue;
+    const returned = (event.payload as { returned?: unknown }).returned;
+    if (!Array.isArray(returned)) continue;
+    for (const item of returned) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as { lesson_id?: unknown; similarity?: unknown; rank_score?: unknown };
+      if (typeof row.lesson_id !== "string") continue;
+      scores.set(row.lesson_id, {
+        similarity: typeof row.similarity === "number" ? row.similarity : 0,
+        rank_score: typeof row.rank_score === "number" ? row.rank_score : 0,
+      });
+    }
+  }
+  return scores;
 }
 
 export async function getDashboard(raw: unknown = {}): Promise<Dashboard> {

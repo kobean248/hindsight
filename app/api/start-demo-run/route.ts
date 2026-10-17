@@ -7,16 +7,19 @@ import { DemoUnavailable, demoTasks, getDemo, startDemo } from "@/lib/demo";
 
 function unavailable(e: unknown) {
   if (e instanceof DemoUnavailable) return json({ error: e.message }, 501);
-  throw e;
+  const message = e instanceof Error ? e.message : "demo failed";
+  return json({ error: message }, 400);
 }
 
 export async function POST(req: Request) {
   const body = (await readJson(req)) ?? {};
   const taskId = body.task_id;
+  const startUrl = body.start_url;
   if (taskId !== undefined && taskId !== null && typeof taskId !== "string") return badRequest("task_id must be a string");
+  if (startUrl !== undefined && startUrl !== null && typeof startUrl !== "string") return badRequest("start_url must be a string");
   try {
     if (taskId && !demoTasks().some((t) => t.task_id === taskId)) return badRequest(`no demo scenario for task ${taskId}`);
-    return json(startDemo(taskId ?? undefined), 202);
+    return json(await startDemo(taskId ?? undefined, typeof startUrl === "string" ? startUrl.trim() || undefined : undefined), 202);
   } catch (e) {
     return unavailable(e);
   }

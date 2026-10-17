@@ -1,4 +1,5 @@
-import taskFile from "../../vm/task.json" with { type: "json" };
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { EvaluatorResult } from "./types";
 
 export interface Env {
@@ -30,6 +31,14 @@ export interface ResolvedTask {
 }
 
 const REQUIRED_ENV = ["FREESTYLE_API_KEY", "WEBARENA_SNAPSHOT_SLUG", "GROQ_API_KEY"] as const;
+
+/** Read as text. A JSON import breaks under tsx because the file has a key named `eval`. */
+export function loadWebArenaTaskFile(): WebArenaTaskFile {
+  const path = fileURLToPath(new URL("../../vm/task.json", import.meta.url));
+  return JSON.parse(readFileSync(path, "utf8")) as WebArenaTaskFile;
+}
+
+const taskFile = loadWebArenaTaskFile();
 
 export function assertFreestyleConfig(env: Env): void {
   for (const key of REQUIRED_ENV) {

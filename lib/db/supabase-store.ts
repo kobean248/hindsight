@@ -295,6 +295,11 @@ export const supabaseStore = {
     return ((data ?? []) as Row[]).map(applicationFromRow);
   },
 
+  async listApplications(): Promise<LessonApplication[]> {
+    const data = await expect(await supabase().from("lesson_applications").select("*"));
+    return ((data ?? []) as Row[]).map(applicationFromRow);
+  },
+
   async recordLessonOutcome(
     applicationId: string,
     verifiedResult: TerminalVerification
@@ -345,6 +350,11 @@ export const supabaseStore = {
   },
 
   async dashboard(filter?: DashboardFilter) {
-    return aggregateDashboard(await this.listLessons(), await this.listRuns(), filter);
+    return aggregateDashboard(
+      await this.listLessons(),
+      await this.listRuns(),
+      await this.listApplications(),
+      filter
+    );
   },
 };

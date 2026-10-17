@@ -132,17 +132,33 @@ export interface DashboardFilter {
   run_status?: RunStatus;
 }
 
+/** Row the dashboard tables render. Matches `RunSummary` in `lib/ui/contracts.ts`. */
+export interface RunSummary {
+  id: string;
+  task_id: string;
+  agent_id: string;
+  status: RunStatus;
+  verified_success: boolean | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error_code: string | null;
+  steps: number;
+  agent_claimed_done: boolean;
+  lessons_applied: number;
+}
+
+/** Shape `GET /api/get-dashboard` returns. The UI reads `runs` as an array. */
 export interface Dashboard {
-  lessons: {
-    total: number;
-    by_status: Record<LessonStatus, number>;
+  kpis: {
+    total_runs: number;
+    verified_runs: number;
+    verified_successes: number;
+    false_successes: number;
+    claimed_done_runs: number;
+    active_lessons: number;
+    verified_applications: number;
+    mean_confidence: number;
   };
-  runs: {
-    total: number;
-    by_status: Record<RunStatus, number>;
-    verified_success_rate: number | null;
-    average_action_count: number | null;
-  };
-  recent_runs: AgentRun[];
-  recent_failures: AgentRun[];
+  runs: RunSummary[];
+  recent_failures: RunSummary[];
 }

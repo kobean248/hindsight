@@ -52,7 +52,17 @@ export class FreestyleExecutionAdapter implements ExecutionAdapter {
 
   async startRun(taskId: string, lesson?: Lesson): Promise<{ runId: string }> {
     assertFreestyleConfig(this.env);
-    const task = resolveTask(taskId, this.env);
+    return this.launch(resolveTask(taskId, this.env), lesson);
+  }
+
+  /** Starts a run from an already resolved task, including a caller-chosen start URL. */
+  async startResolvedRun(task: ResolvedTask, lesson?: Lesson): Promise<{ runId: string }> {
+    assertFreestyleConfig(this.env);
+    return this.launch(task, lesson);
+  }
+
+  private async launch(task: ResolvedTask, lesson?: Lesson): Promise<{ runId: string }> {
+    const taskId = task.taskId;
     const lessonId = lesson?.id ?? null;
     const { runId } = await this.store.createRun({ taskId, agentId: this.agentId, lessonId });
     await this.store.appendEvent(runId, "queued", { task_id: taskId, lesson_id: lessonId });

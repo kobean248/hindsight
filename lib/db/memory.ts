@@ -203,6 +203,10 @@ export class MemoryStore {
     return [...this.applications.values()].filter((row) => row.run_id === runId);
   }
 
+  async listApplications(): Promise<LessonApplication[]> {
+    return [...this.applications.values()];
+  }
+
   async recordLessonOutcome(
     applicationId: string,
     verifiedResult: TerminalVerification
@@ -255,7 +259,12 @@ export class MemoryStore {
   }
 
   async dashboard(filter?: DashboardFilter) {
-    return aggregateDashboard(await this.listLessons(), await this.listRuns(), filter);
+    return aggregateDashboard(
+      await this.listLessons(),
+      await this.listRuns(),
+      await this.listApplications(),
+      filter
+    );
   }
 
   private requireLesson(id: string): Lesson {

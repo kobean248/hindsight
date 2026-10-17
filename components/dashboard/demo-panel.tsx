@@ -49,9 +49,18 @@ export interface RecordedSummary {
   source: "live" | "test_double";
 }
 
+type DemoTaskOption = {
+  task_id: string;
+  domain: string;
+  instruction: string;
+  start_url?: string;
+  success_url_includes?: string | null;
+};
+
 export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
-  const [tasks, setTasks] = useState<{ task_id: string; domain: string; instruction: string }[] | null>(null);
+  const [tasks, setTasks] = useState<DemoTaskOption[] | null>(null);
   const [taskId, setTaskId] = useState<string>("");
+  const [startUrl, setStartUrl] = useState<string>("");
   const [demoId, setDemoId] = useState<string | null>(null);
   const [startError, setStartError] = useState<Error | null>(null);
   const [starting, setStarting] = useState(false);
@@ -62,6 +71,7 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
       .then((r) => {
         setTasks(r.tasks);
         setTaskId(r.tasks[0]?.task_id ?? "");
+        setStartUrl(r.tasks[0]?.start_url ?? "");
       })
       .catch((e: Error) => setStartError(e));
     setDemoId(readLastDemo());
@@ -77,7 +87,7 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
     setStarting(true);
     setStartError(null);
     try {
-      const d = await api.startDemoRun(taskId || undefined);
+      const d = await api.startDemoRun(taskId || undefined, startUrl.trim() || undefined);
       writeLastDemo(d.id);
       setDemoId(d.id);
     } catch (e) {
@@ -97,7 +107,11 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
           {tasks && tasks.length > 1 && (
             <select
               value={taskId}
-              onChange={(e) => setTaskId(e.target.value)}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setTaskId(nextId);
+                setStartUrl(tasks.find((item) => item.task_id === nextId)?.start_url ?? "");
+              }}
               className="rounded border border-border bg-surface px-2 py-1 text-sm"
               disabled={running}
             >
@@ -117,9 +131,26 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
       }
     >
       {task && (
-        <p className="mb-3 text-sm text-muted">
-          <span className="font-mono text-xs">{task.task_id}</span> on {task.domain}: {task.instruction}
-        </p>
+        <div className="mb-3 space-y-2 text-sm text-muted">
+          <p>
+            <span className="font-mono text-xs">{task.task_id}</span> on {task.domain}: {task.instruction}
+          </p>
+          {task.start_url !== undefined && (
+            <label className="block text-xs">
+              Start URL
+              <input
+                value={startUrl}
+                onChange={(e) => setStartUrl(e.target.value)}
+                disabled={running}
+                spellCheck={false}
+                className="mt-1 w-full rounded border border-border bg-surface px-2 py-1 font-mono text-xs"
+              />
+            </label>
+          )}
+          {task.success_url_includes && (
+            <p className="text-xs">Passes when the final page URL contains <span className="font-mono">{task.success_url_includes}</span>.</p>
+          )}
+        </div>
       )}
       {startError && <ErrorState error={startError} />}
       {poll.error && <ErrorState error={poll.error} onRetry={poll.refresh} />}

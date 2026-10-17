@@ -9,6 +9,10 @@ export async function insertLesson(input: NewLesson): Promise<Lesson> {
   return getStore().insertLesson(input);
 }
 
+export async function listLessons(): Promise<Lesson[]> {
+  return getStore().listLessons();
+}
+
 export async function listActiveLessons(domain: string): Promise<Lesson[]> {
   return getStore().listActiveLessons(domain);
 }

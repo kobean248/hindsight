@@ -25,6 +25,7 @@ import {
   describeAction,
   executeTool,
   parseToolArguments,
+  TOOL_NAMES,
   toolSchemas,
   truncate,
   type ToolOptions,
@@ -32,6 +33,24 @@ import {
 } from "./tools";
 
 export type { StopReason };
+
+function sideChannelTool(name: "commentary" | "json") {
+  return {
+    type: "function" as const,
+    function: {
+      name,
+      description: "Optional aside. This does not change the page. Follow it with a browser tool.",
+      parameters: {
+        type: "object" as const,
+        properties: { summary: { type: "string" as const, description: "Short note." } },
+        additionalProperties: true,
+      },
+    },
+  };
+}
+
+const sideChannelTools = [sideChannelTool("commentary"), sideChannelTool("json")];
+const sideChannelNames = new Set(sideChannelTools.map((tool) => tool.function.name));
 
 export interface RunAgentOptions {
   page: Page;
@@ -120,6 +139,55 @@ function isTimeoutError(err: unknown): boolean {
 
 function errText(err: unknown): string {
   return truncate(err instanceof Error ? err.message : String(err), 400);
+}
+
+/**
+ * gpt-oss sometimes names the tool `name=finish`. Groq rejects that before
+ * the call is returned. If the name is one we already declared, run it.
+ */
+function recoverMisnamedTool(err: unknown): LlmToolCall | null {
+  const text = err instanceof Error ? err.message : String(err);
+  const named = text.match(/attempted to call tool '([^']+)'/);
+  if (!named) return null;
+  const rawName = named[1] ?? "";
+  const name = rawName.startsWith("name=") ? rawName.slice("name=".length) : rawName;
+  const known = new Set<string>([...TOOL_NAMES, ...sideChannelNames]);
+  if (!known.has(name)) return null;
+  let args = "{}";
+  const encoded = text.match(/"failed_generation"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (encoded?.[1]) {
+    try {
+      const decoded = JSON.parse(`"${encoded[1]}"`) as unknown;
+      const body = typeof decoded === "string" ? (JSON.parse(decoded) as { arguments?: unknown }) : (decoded as { arguments?: unknown });
+      if (typeof body.arguments === "string") args = body.arguments;
+      else if (body.arguments && typeof body.arguments === "object") args = JSON.stringify(body.arguments);
+    } catch {
+      args = "{}";
+    }
+  }
+  if (name === "finish" && args === "{}") args = JSON.stringify({ summary: "finished" });
+  return { id: `recovered-${name}`, type: "function", function: { name, arguments: args } };
+}
+
+/**
+ * gpt-oss sometimes writes a sentence instead of a tool call. Groq then
+ * returns output_parse_failed and puts that sentence in failed_generation.
+ * Hand it back as ordinary text so the loop can nudge and continue.
+ */
+function recoverUnparsedOutput(err: unknown): LlmOutcome | null {
+  const text = err instanceof Error ? err.message : String(err);
+  if (!/output_parse_failed|could not be parsed/i.test(text)) return null;
+  const encoded = text.match(/"failed_generation"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  let content: string | null = null;
+  if (encoded?.[1]) {
+    try {
+      const decoded = JSON.parse(`"${encoded[1]}"`) as unknown;
+      content = typeof decoded === "string" ? decoded.trim() : null;
+    } catch {
+      content = encoded[1].trim();
+    }
+  }
+  return { ok: true, content: content || null, toolCall: null };
 }
 
 /** Resolves after `ms`, or early (returning false) if `signal` aborts. */
@@ -221,7 +289,8 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
       const body: ChatCompletionRequest = {
         model,
         messages,
-        tools: toolSchemas,
+        // gpt-oss emits commentary and json calls. Groq rejects a name that was not declared.
+        tools: [...toolSchemas, ...sideChannelTools],
         tool_choice: "auto",
         temperature: 0,
         ...(sendParallelFlag ? { parallel_tool_calls: false as const } : {}),
@@ -257,6 +326,10 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
           sendParallelFlag = false; // provider doesn't support it: handle only the first call instead
           continue;
         }
+        const recovered = status === 400 ? recoverMisnamedTool(err) : null;
+        if (recovered) return { ok: true, content: null, toolCall: recovered };
+        const prose = status === 400 ? recoverUnparsedOutput(err) : null;
+        if (prose) return prose;
         const retryable = status === 429 || (status !== undefined && status >= 500);
         if (retryable && !retried) {
           retried = true;
@@ -292,6 +365,16 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
       noToolReplies = 0;
 
       const toolName = call.function?.name ?? "";
+      if (sideChannelNames.has(toolName)) {
+        turns.push({
+          assistant: { role: "assistant", content: llm.content ?? null, tool_calls: [call] },
+          toolCallId: call.id,
+          tool: toolName,
+          status: "ok",
+          observation: "Noted. Continue with a browser tool.",
+        });
+        continue;
+      }
       const args = parseToolArguments(call.function?.arguments);
       const action = describeAction(toolName, args);
 

@@ -8,6 +8,33 @@ export const DEFAULT_CDP_PORT = 9333;
 export const VM_TTL_SECONDS = 600;
 const EVALUATOR_TIMEOUT_MS = 60_000;
 const DEFAULT_EVALUATOR_COMMAND = "python3 /opt/webarena/evaluate.py /tmp/agent-ledger-task.json";
+const LEDGER_GRADE_PATH = "/tmp/agent-ledger-grade.py";
+
+/** Grades a live demo by reading the open page URL from Chrome's CDP list. */
+const LEDGER_GRADE_PY = `import json, urllib.request
+try:
+    task = json.load(open("/tmp/agent-ledger-task.json"))
+    needle = ((task.get("ledger_check") or {}).get("must_include") or "")
+    with urllib.request.urlopen("http://127.0.0.1:9222/json/list", timeout=5) as res:
+        pages = json.load(res)
+    urls = [p.get("url") or "" for p in pages if isinstance(p, dict)]
+    matched = next((u for u in urls if needle and needle in u), "")
+    passed = bool(matched)
+    detail = matched or ("; ".join(urls) or "no open page")
+except Exception as exc:
+    passed = False
+    detail = str(exc)
+print(json.dumps({"passed": passed, "score": 1 if passed else 0, "evidence": {"type": "url_match", "detail": detail[:500]}}))
+`;
+
+export function evaluatorPlan(task: ResolvedTask, env: Env): { command: string; scriptPath?: string; script?: string } {
+  const config = task.config;
+  const check = config && typeof config === "object" ? (config as { ledger_check?: { must_include?: unknown } }).ledger_check : undefined;
+  if (check && typeof check.must_include === "string" && check.must_include.trim()) {
+    return { command: `python3 ${LEDGER_GRADE_PATH}`, scriptPath: LEDGER_GRADE_PATH, script: LEDGER_GRADE_PY };
+  }
+  return { command: env.WEBARENA_EVALUATOR_COMMAND?.trim() || DEFAULT_EVALUATOR_COMMAND };
+}
 
 export interface GuestExecResult {
   stdout: string;
@@ -109,8 +136,9 @@ async function evaluateInVm(
   env: Env,
 ): Promise<GuestExecResult> {
   await vm.fs.writeTextFile("/tmp/agent-ledger-task.json", JSON.stringify(task.config));
-  const command = env.WEBARENA_EVALUATOR_COMMAND?.trim() || DEFAULT_EVALUATOR_COMMAND;
-  const result = await vm.exec({ command, timeoutMs: EVALUATOR_TIMEOUT_MS });
+  const plan = evaluatorPlan(task, env);
+  if (plan.script && plan.scriptPath) await vm.fs.writeTextFile(plan.scriptPath, plan.script);
+  const result = await vm.exec({ command: plan.command, timeoutMs: EVALUATOR_TIMEOUT_MS });
   return {
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",

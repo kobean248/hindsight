@@ -19,10 +19,23 @@ export interface LlmMessage {
   tool_call_id?: string;
 }
 
+export interface CommentaryTool {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, { type: "string"; description: string }>;
+      additionalProperties: boolean;
+    };
+  };
+}
+
 export interface ChatCompletionRequest {
   model: string;
   messages: LlmMessage[];
-  tools: ToolSchema[];
+  tools: Array<ToolSchema | CommentaryTool>;
   tool_choice: "auto";
   /** Always false; omitted on a retry if the provider rejects the parameter. */
   parallel_tool_calls?: false;
