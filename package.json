@@ -12,6 +12,7 @@
     "capture-pair": "tsx scripts/capture-recorded-pair.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.1",
     "@supabase/supabase-js": "^2.45.4",
     "next": "16.4.2",
     "react": "19.3.1",

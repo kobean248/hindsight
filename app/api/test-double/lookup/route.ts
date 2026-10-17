@@ -13,5 +13,5 @@ export async function POST(req: Request) {
   if (!domain) return badRequest("domain is required");
   if (!task) return badRequest("task_description is required (≤ 2000 chars)");
   if (typeof k !== "number" || !Number.isInteger(k) || k < 1 || k > 20) return badRequest("k must be an integer 1–20");
-  return json({ lessons: lookup(domain, task, k) });
+  return json({ lessons: await lookup(domain, task, k) });
 }

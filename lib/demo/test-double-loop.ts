@@ -60,7 +60,7 @@ async function runRounds(demo: DemoState, sc: Scenario, delay: number): Promise<
   // Round 2 — reflect on the evaluator-confirmed failure, contribute the lesson.
   demo.phase = "reflecting";
   await new Promise((r) => setTimeout(r, delay));
-  const { lesson, deduplicated, similarity } = contributeLesson({
+  const { lesson, deduplicated, similarity } = await contributeLesson({
     ...sc.reflect,
     domain: sc.domain,
     source_run_id: baseline.id,
@@ -79,7 +79,7 @@ async function runRounds(demo: DemoState, sc: Scenario, delay: number): Promise<
   const transfer = createRun(sc.task_id, "agent-b");
   demo.transfer_run_id = transfer.id;
   pairRuns(baseline.id, transfer.id);
-  const retrieved = lookup(sc.domain, sc.instruction, DEMO_LOOKUP_K);
+  const retrieved = await lookup(sc.domain, sc.instruction, DEMO_LOOKUP_K);
   setRetrieved(transfer.id, retrieved);
   addEvent(transfer.id, "lookup", {
     domain: sc.domain,

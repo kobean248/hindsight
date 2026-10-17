@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { startTestDoubleDemo } from "@/lib/demo/test-double-loop";
 import { SCENARIOS } from "@/lib/test-double/scenarios";
-import { countVerified, rankScore, wilsonLowerBound } from "@/lib/test-double/scoring";
-import { similarity } from "@/lib/test-double/similarity";
+import { RELEVANCE_FLOOR, countVerified, rankScore, wilsonLowerBound } from "@/lib/test-double/scoring";
+import { cosine, embed } from "@/lib/embeddings/minilm";
 import {
   contributeLesson,
   createRun,
@@ -38,17 +38,17 @@ describe("§06 confidence", () => {
   it("ranks 0.7 × similarity + 0.3 × confidence", () => expect(rankScore(0.8, 0.5)).toBeCloseTo(0.71));
 });
 
-describe("lookup", () => {
+describe("lookup (all-MiniLM-L6-v2)", () => {
   it("is seeded with the 17 pilot notes", () => {
     expect(listLessons({}).lessons).toHaveLength(17);
     expect(listLessons({ domain: "usps.com" }).lessons).toHaveLength(3);
   });
-  it("returns nothing rather than something below the 0.75 floor", () => {
-    expect(lookup("usps.com", "price of a flat rate box")).toEqual([]);
-    expect(lookup("nowhere.example", "anything")).toEqual([]);
+  it("returns nothing rather than something below the floor", async () => {
+    expect(await lookup("usps.com", "Find the current retail price of a Priority Mail Flat Rate Small Box on USPS.com.")).toEqual([]);
+    expect(await lookup("nowhere.example", "anything")).toEqual([]);
   });
-  it("returns only the matching note for a site, not every note", () => {
-    const hits = lookup("usps.com", "find the nearest post office and its Saturday retail hours");
+  it("returns only the matching note for a site, not every note", async () => {
+    const hits = await lookup("usps.com", "find the nearest post office and its Saturday retail hours");
     expect(hits.map((h) => h.id)).toEqual(["kb_000015"]);
     expect(hits[0].similarity).toBeGreaterThanOrEqual(0.75);
   });
@@ -64,14 +64,14 @@ describe("contribute", () => {
     risk_warnings: [],
     source_run_id: "r1",
   };
-  it("creates a new lesson below the 0.92 dedup threshold", () => {
-    const r = contributeLesson(draft);
+  it("creates a new lesson below the 0.92 dedup threshold", async () => {
+    const r = await contributeLesson(draft);
     expect(r.deduplicated).toBe(false);
     expect(listLessons({ domain: "usps.com" }).lessons).toHaveLength(4);
   });
-  it("returns the existing lesson at ≥ 0.92 similarity", () => {
-    const first = contributeLesson(draft);
-    const second = contributeLesson({ ...draft, source_run_id: "r2" });
+  it("returns the existing lesson at ≥ 0.92 similarity", async () => {
+    const first = await contributeLesson(draft);
+    const second = await contributeLesson({ ...draft, source_run_id: "r2" });
     expect(second.deduplicated).toBe(true);
     expect(second.lesson.id).toBe(first.lesson.id);
   });
@@ -104,10 +104,11 @@ describe("run lifecycle", () => {
 
 describe("scripted usps_03 scenario", () => {
   const sc = SCENARIOS.usps_03;
-  it("Reflect's lesson is retrievable for the task but distinct from the pilot note", () => {
-    expect(similarity(sc.instruction, sc.reflect.task_pattern)).toBeGreaterThanOrEqual(0.75);
+  it("Reflect's lesson is retrievable for the task but distinct from the pilot note", async () => {
     const pilot = listLessons({ domain: "usps.com" }).lessons.find((l) => l.id === "kb_000015")!;
-    expect(similarity(sc.reflect.task_pattern, pilot.task_pattern)).toBeLessThan(0.92);
+    const [task, reflect, note] = await embed([sc.instruction, sc.reflect.task_pattern, pilot.task_pattern]);
+    expect(cosine(task, reflect)).toBeGreaterThanOrEqual(RELEVANCE_FLOOR);
+    expect(cosine(reflect, note)).toBeLessThan(0.92);
   });
 
   it("runs baseline → reflect → transfer with evaluator-only verdicts", async () => {

@@ -4,7 +4,7 @@
 Status: Draft — hackathon scope
 Date: 2026-10-17
 Horizon: Single hackathon build
-Stack (locked): Next.js (web + API routes + MCP server) · Supabase/Postgres + pgvector · OpenAI `text-embedding-3-small` (1536-dim) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator · MCP (Streamable HTTP, `/api/mcp`)
+Stack (locked): Next.js (web + API routes + MCP server) · Supabase/Postgres + pgvector · `all-MiniLM-L6-v2` embeddings (384-dim, local) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator · MCP (Streamable HTTP, `/api/mcp`)
 
 A shared memory layer so that when one AI agent learns something the hard
 way, every other agent that hits the same task starts from the lesson
@@ -201,9 +201,16 @@ HTTP/MCP request.
 not a fallback, not a "swap later." One database, one connection string,
 everywhere.
 
-**Locked: embedding model.** `text-embedding-3-small` (OpenAI), 1536
-dimensions, called server-side with the same model for both indexing a
-stored `task_pattern` and embedding an incoming `lookup` query — a lookup
+**Locked: embedding model.** `all-MiniLM-L6-v2` (sentence-transformers),
+384 dimensions, L2-normalised, run **in-process on the server** via
+transformers.js (`Xenova/all-MiniLM-L6-v2`, `lib/embeddings/minilm.ts`) —
+no API key and no network call after the one-time model download. It is
+the model the pilot experiment used (graveyard-experiment), so similarity
+scores are comparable with that data. *(Changed 17 Oct from OpenAI
+`text-embedding-3-small`/1536 by the team; the existing `vector(1536)`
+column needs a Lane A migration to `vector(384)`.)* The same model is used
+for both indexing a stored `task_pattern` and embedding an incoming
+`lookup` query — a lookup
 embedded with a different model or dimension than the stored vectors isn't
 a worse match, it's a type error, so this is a hard rule, not a
 preference. The `embedding_model` column below exists specifically so a
@@ -218,8 +225,8 @@ future model change can't silently mix incompatible vectors in one index.
 | `id` | uuid pk | |
 | `domain` | text | e.g. `"webarena.shopping"` |
 | `task_pattern` | text | normalized task description |
-| `task_embedding` | vector(1536) | from `text-embedding-3-small` |
-| `embedding_model` | text | `"text-embedding-3-small"` — guards against silent model drift |
+| `task_embedding` | vector(384) | from `all-MiniLM-L6-v2` |
+| `embedding_model` | text | `"all-MiniLM-L6-v2"` — guards against silent model drift |
 | `lesson_text` | text, nullable | the fix, written by Reflect |
 | `root_cause` | text, nullable | why the originating run failed |
 | `success_criteria` | text, nullable | human-readable restatement of what the evaluator checks |
@@ -320,7 +327,7 @@ confidence = ( p̂ + z²/(2n) − z·√( p̂(1−p̂)/n + z²/(4n²) ) ) / (1 +
 - The run that originally produced a lesson (the failure Reflect diagnosed) is never itself recorded as an application of that lesson — it's the `agent_runs` row Reflect read, not a `lesson_applications` row.
 
 **Ranking (locked formula).** `lookup(domain, task_description, k)`:
-1. Embed `task_description` with `text-embedding-3-small`.
+1. Embed `task_description` with `all-MiniLM-L6-v2`.
 2. Compute cosine similarity against `task_embedding` for all `active` lessons in `domain`.
 3. **Relevance threshold: discard any lesson with similarity < 0.75** — regardless of confidence. A highly confident but semantically unrelated lesson must never be forced into context.
 4. Among the survivors, `rank_score = 0.7 × similarity + 0.3 × confidence`.

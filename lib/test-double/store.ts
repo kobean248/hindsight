@@ -25,13 +25,13 @@ import type {
   VerificationStatus,
 } from "@/lib/ui/contracts";
 import { PILOT_NOTES, noteToLesson } from "@/lib/pilot/notes";
-import { similarity } from "./similarity";
+import { EMBEDDING_MODEL, cosine, embed } from "@/lib/embeddings/minilm";
 import { DEDUP_THRESHOLD, RELEVANCE_FLOOR, countVerified, rankScore, wilsonLowerBound } from "./scoring";
-
-export const TEST_EMBEDDING_MODEL = "test-double-lexical";
 
 interface State {
   lessons: Map<string, Lesson>;
+  /** task_pattern embeddings, keyed by lesson id (the test double's stand-in for task_embedding). */
+  vectors: Map<string, number[]>;
   runs: Map<string, AgentRun>;
   events: RunEvent[];
   applications: Map<string, LessonApplication>;
@@ -45,7 +45,8 @@ interface State {
 
 function seed(): State {
   return {
-    lessons: new Map(PILOT_NOTES.map((n) => [n.id, noteToLesson(n, TEST_EMBEDDING_MODEL)])),
+    lessons: new Map(PILOT_NOTES.map((n) => [n.id, noteToLesson(n, EMBEDDING_MODEL)])),
+    vectors: new Map(),
     runs: new Map(),
     events: [],
     applications: new Map(),
@@ -72,11 +73,23 @@ const now = () => new Date().toISOString();
 
 // ---------- lookup / contribute (§06, §07) ----------
 
-export function lookup(domain: string, taskDescription: string, k = 5): RankedLesson[] {
+/** Embeds any active lessons in `domain` that don't have a vector yet. */
+async function activeWithVectors(domain: string): Promise<{ lesson: Lesson; vec: number[] }[]> {
+  const s = state();
+  const pool = [...s.lessons.values()].filter((l) => l.domain === domain && l.status === "active");
+  const missing = pool.filter((l) => !s.vectors.has(l.id));
+  const vecs = await embed(missing.map((l) => l.task_pattern));
+  missing.forEach((l, i) => s.vectors.set(l.id, vecs[i]));
+  return pool.map((lesson) => ({ lesson, vec: s.vectors.get(lesson.id)! }));
+}
+
+export async function lookup(domain: string, taskDescription: string, k = 5): Promise<RankedLesson[]> {
+  const pool = await activeWithVectors(domain);
+  if (pool.length === 0) return [];
+  const [q] = await embed([taskDescription]);
   const ranked: RankedLesson[] = [];
-  for (const l of state().lessons.values()) {
-    if (l.domain !== domain || l.status !== "active") continue;
-    const sim = similarity(taskDescription, l.task_pattern);
+  for (const { lesson: l, vec } of pool) {
+    const sim = cosine(q, vec);
     if (sim < RELEVANCE_FLOOR) continue;
     ranked.push({ ...l, similarity: sim, rank_score: rankScore(sim, l.confidence) });
   }
@@ -97,11 +110,14 @@ export interface LessonDraft {
 }
 
 /** Returns the new lesson, or the existing one when similarity ≥ 0.92 (§05 dedup). */
-export function contributeLesson(d: LessonDraft): { lesson: Lesson; deduplicated: boolean; similarity: number | null } {
+export async function contributeLesson(
+  d: LessonDraft,
+): Promise<{ lesson: Lesson; deduplicated: boolean; similarity: number | null }> {
+  const pool = await activeWithVectors(d.domain);
+  const [vec] = await embed([d.task_pattern]);
   let best: { lesson: Lesson; sim: number } | null = null;
-  for (const l of state().lessons.values()) {
-    if (l.domain !== d.domain || l.status !== "active") continue;
-    const sim = similarity(d.task_pattern, l.task_pattern);
+  for (const { lesson: l, vec: other } of pool) {
+    const sim = cosine(vec, other);
     if (!best || sim > best.sim) best = { lesson: l, sim };
   }
   if (best && best.sim >= DEDUP_THRESHOLD) {
@@ -113,7 +129,7 @@ export function contributeLesson(d: LessonDraft): { lesson: Lesson; deduplicated
     id: randomUUID(),
     domain: d.domain,
     task_pattern: d.task_pattern,
-    embedding_model: TEST_EMBEDDING_MODEL,
+    embedding_model: EMBEDDING_MODEL,
     lesson_text: d.lesson_text,
     root_cause: d.root_cause,
     success_criteria: d.success_criteria,
@@ -130,6 +146,7 @@ export function contributeLesson(d: LessonDraft): { lesson: Lesson; deduplicated
     source_run_id: d.source_run_id,
   };
   state().lessons.set(lesson.id, lesson);
+  state().vectors.set(lesson.id, vec);
   state().createdLesson.set(d.source_run_id, lesson.id);
   return { lesson, deduplicated: false, similarity: best?.sim ?? null };
 }

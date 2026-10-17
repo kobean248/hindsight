@@ -55,8 +55,9 @@ npm run build
 `NEXT_PUBLIC_LEDGER_SOURCE` picks where the UI reads data:
 
 - unset / `test_double` (default): an in-process fake under `/api/test-double/*` (`lib/test-double/`), seeded
-  with the 17 notes from the 17 Oct pilot (`data/pilot/`). It enforces the PRD §06 rules, but similarity is
-  lexical and every run is scripted. A banner on every page says so.
+  with the 17 notes from the 17 Oct pilot (`data/pilot/`). It enforces the PRD §06 rules with real
+  all-MiniLM-L6-v2 embeddings (`lib/embeddings/minilm.ts`; downloaded on first use, ~90 MB), but every run
+  is scripted. A banner on every page says so.
 - `live`: reads Lane A's routes under `/api/*`. What the UI expects from them is in
   `docs/lane-c-api-expectations.md`. The live demo returns 501 until Lane A's `lib/loop` is wired into
   `lib/demo/index.ts`.
