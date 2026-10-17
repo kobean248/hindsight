@@ -3,7 +3,6 @@
 **PRD · AL-002 · Draft — implementation-ready, supersedes AL-001**
 Status: Draft — hackathon scope
 Date: 2026-10-17
-Owner: sksfin@gmail.com
 Horizon: Single hackathon build
 Stack (locked): Next.js (web + API routes) · Supabase/Postgres + pgvector · OpenAI `text-embedding-3-small` (1536-dim) · Anthropic Claude (agent runtime + Reflect) · Playwright · Freestyle VM · WebArena evaluator
 
@@ -114,6 +113,13 @@ keep configured and healthy — it's invoked, it answers, it exits.
 **Embedding calls are server-side, inside the same Next.js API routes**
 that call `lookup`/`contribute` — not a separate embedding microservice.
 See section 05 for the exact model.
+
+**The primary interface is HTTP, not MCP.** `lookup`/`contribute` are
+plain Next.js API routes (§07) — any agent calls them however it calls
+HTTP. An MCP server wrapping those same routes so MCP-native clients can
+call them as tools is a deliberate stretch item (§12), not a missing
+piece of this architecture — it wraps the routes, it doesn't replace
+them.
 
 ## 05 · Data model
 
@@ -448,6 +454,7 @@ stop whenever time runs out.
 | P2 | Risk warnings gated behind human approval before auto-applying | Shows the safety story, not just the learning story. |
 | P2 | Memory decay for lessons that stop succeeding | Shows the system notices its own staleness. |
 | P2 | Supabase Realtime instead of polling | Nicer, not necessary. |
+| P2 | MCP server wrapping `lookup`/`contribute` | Lets an MCP-compatible agent (Claude Code, Claude Desktop, etc.) call the ledger as a native tool instead of a hand-rolled HTTP client — the calling pattern the project's own thesis assumes, made literal. Wraps the existing API routes from §07; does not replace them as the primary interface. |
 
 ## 13 · Risks & open questions
 
