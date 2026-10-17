@@ -11,6 +11,7 @@ export default defineConfig({
       "lib/execution/**/*.test.ts",
       "tests/run-view.test.ts",
       "tests/test-double.test.ts",
+      "tests/trace-view.test.ts",
     ],
   },
 });
