@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/ui/api-client";
+import { ApiError, api } from "@/lib/ui/api-client";
 import type { DemoPhase, DemoState } from "@/lib/ui/contracts";
 import { usePolling } from "@/lib/ui/use-polling";
 import { Badge, Card, ErrorState, RunLink } from "@/components/ui";
@@ -40,6 +40,14 @@ function writeLastDemo(id: string) {
     window.localStorage.setItem(LAST_DEMO_KEY, id);
   } catch {
     /* storage unavailable: the demo still runs, it just isn't restored on reload */
+  }
+}
+
+function forgetLastDemo() {
+  try {
+    window.localStorage.removeItem(LAST_DEMO_KEY);
+  } catch {
+    /* storage unavailable */
   }
 }
 
@@ -84,6 +92,12 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
   const poll = usePolling(demoId ? () => api.getDemo(demoId) : null, demoId ?? "none", {
     stopWhen: (d) => d.phase === "done" || d.phase === "error",
   });
+  // Demo progress lives in server memory. A reload or a new dev server drops it, and the saved id 404s forever.
+  useEffect(() => {
+    if (!(poll.error instanceof ApiError) || poll.error.status !== 404) return;
+    forgetLastDemo();
+    setDemoId(null);
+  }, [poll.error]);
   const demo = poll.data;
   const running = !!demo && demo.phase !== "done" && demo.phase !== "error";
 
@@ -196,7 +210,9 @@ export function DemoPanel({ recorded }: { recorded: RecordedSummary[] }) {
         </div>
       )}
       {startError && <ErrorState error={startError} />}
-      {poll.error && <ErrorState error={poll.error} onRetry={poll.refresh} />}
+      {poll.error && !(poll.error instanceof ApiError && poll.error.status === 404) && (
+        <ErrorState error={poll.error} onRetry={poll.refresh} />
+      )}
 
       <ol className="grid gap-2 sm:grid-cols-3">
         {ROUNDS.map((r) => {
