@@ -11,7 +11,6 @@ import { getDashboard as queryDashboard } from "../db/read-model";
 import { insertRunEvent, listRunEvents } from "../db/run-events";
 import type { AgentRun, Dashboard, DashboardFilter, Lesson, LessonApplication, LessonScore, RankedLesson, TerminalVerification, TraceEvent } from "../db/types";
 import { dbRunStore } from "../db/run-store";
-import { createExecutionAdapter } from "../execution/factory";
 import type { ExecutionAdapter } from "../execution/types";
 import { findDuplicate } from "../scoring/dedup";
 import { embedTaskText } from "../scoring/embed";
@@ -304,8 +303,9 @@ export function setExecutionAdapter(adapter: ExecutionAdapter | null): void {
   executionAdapter = adapter;
 }
 
-export function getExecutionAdapter(): ExecutionAdapter {
+export async function getExecutionAdapter(): Promise<ExecutionAdapter> {
   if (!executionAdapter) {
+    const { createExecutionAdapter } = await import("../execution/factory");
     executionAdapter = createExecutionAdapter({ store: dbRunStore });
   }
   return executionAdapter;
@@ -325,7 +325,7 @@ export async function recordOutcomeFromCaller(raw: unknown): Promise<LessonScore
   const run = await requireRun(input.run_id);
   let verifiedResult: TerminalVerification;
   try {
-    const verified = await verify(run.id, run.task_id, getExecutionAdapter());
+    const verified = await verify(run.id, run.task_id, await getExecutionAdapter());
     verifiedResult = verified.passed ? "verified_success" : "verified_failure";
   } catch (error) {
     if (error instanceof LedgerError && error.message === "evaluator_unavailable") {

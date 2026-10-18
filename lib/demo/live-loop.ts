@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { setVerifiedSuccess } from "@/lib/db/agent-runs";
 import { dbRunStore } from "@/lib/db/run-store";
 import { insertRunEvent } from "@/lib/db/run-events";
-import { FreestyleExecutionAdapter } from "@/lib/execution/freestyle-adapter";
+import type { FreestyleExecutionAdapter } from "@/lib/execution/freestyle-adapter";
 import { ExecutionError } from "@/lib/execution/types";
 import { learnFromFailure, lookup, recordApplication, recordOutcome, setExecutionAdapter } from "@/lib/loop/operations";
 import type { DemoState } from "@/lib/ui/contracts";
@@ -17,9 +17,10 @@ const demos = new Map<string, DemoState>();
 const startedTasks = new Map<string, { task: ReturnType<typeof resolveLiveTask>; instruction: string; domain: string }>();
 let adapter: FreestyleExecutionAdapter | null = null;
 
-function liveAdapter(): FreestyleExecutionAdapter {
+async function liveAdapter(): Promise<FreestyleExecutionAdapter> {
   if (!adapter) {
-    adapter = new FreestyleExecutionAdapter(dbRunStore);
+    const { FreestyleExecutionAdapter: Adapter } = await import("@/lib/execution/freestyle-adapter");
+    adapter = new Adapter(dbRunStore);
     setExecutionAdapter(adapter);
   }
   return adapter;
@@ -50,7 +51,7 @@ export async function startLiveDemo(taskId?: string, startUrl?: string, request:
     error: null,
     source: "live",
   };
-  const { runId } = await liveAdapter().startResolvedRun(task);
+  const { runId } = await (await liveAdapter()).startResolvedRun(task);
   demo.baseline_run_id = runId;
   demos.set(demo.id, demo);
   startedTasks.set(demo.id, { task, instruction: task.intent, domain });
@@ -71,7 +72,7 @@ async function continueLiveDemo(demo: DemoState): Promise<void> {
   if (!runId) return;
   let passed = false;
   try {
-    const result = await liveAdapter().awaitResult(runId);
+    const result = await (await liveAdapter()).awaitResult(runId);
     passed = result.evaluator.passed;
     await setVerifiedSuccess(runId, passed);
   } catch (error) {
@@ -118,7 +119,7 @@ async function continueLiveDemo(demo: DemoState): Promise<void> {
   });
   const applied = retrieved[0];
   const transferTask = started?.task ?? resolveLiveTask(demo.task_id, undefined);
-  const transfer = await liveAdapter().startResolvedRun(
+  const transfer = await (await liveAdapter()).startResolvedRun(
     transferTask,
     applied
       ? {
@@ -135,7 +136,7 @@ async function continueLiveDemo(demo: DemoState): Promise<void> {
   demo.transfer_run_id = transfer.runId;
   const application = applied ? await recordApplication(applied.id, transfer.runId) : null;
   try {
-    const result = await liveAdapter().awaitResult(transfer.runId);
+    const result = await (await liveAdapter()).awaitResult(transfer.runId);
     await setVerifiedSuccess(transfer.runId, result.evaluator.passed);
     if (application) {
       await recordOutcome(application.application_id, result.evaluator.passed ? "verified_success" : "verified_failure");
