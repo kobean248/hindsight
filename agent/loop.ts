@@ -174,6 +174,81 @@ function recoverMisnamedTool(err: unknown): LlmToolCall | null {
  * returns output_parse_failed and puts that sentence in failed_generation.
  * Hand it back as ordinary text so the loop can nudge and continue.
  */
+/**
+ * gpt-oss sometimes puts a sentence in `arguments` instead of a JSON object.
+ * Groq rejects that as tool_use_failed. Keep the sentence as a note.
+ */
+function recoverBrokenToolArguments(err: unknown): LlmOutcome | null {
+  const text = err instanceof Error ? err.message : String(err);
+  if (!/tool_use_failed|parse tool call arguments/i.test(text)) return null;
+  const generation = failedGenerationText(text);
+  if (!generation) return { ok: true, content: null, toolCall: null };
+  const named = generation.match(/"name"\s*:\s*"([^"]+)"/);
+  const rawName = named?.[1] ?? "";
+  const name = rawName.startsWith("name=") ? rawName.slice("name=".length) : rawName;
+  const known = new Set<string>([...TOOL_NAMES, ...sideChannelNames]);
+  const prose = argumentProse(generation);
+  if (!known.has(name) || sideChannelNames.has(name)) {
+    return {
+      ok: true,
+      content: null,
+      toolCall: {
+        id: "recovered-commentary",
+        type: "function",
+        function: { name: "commentary", arguments: JSON.stringify({ summary: prose || "noted" }) },
+      },
+    };
+  }
+  if (name === "finish") {
+    return {
+      ok: true,
+      content: null,
+      toolCall: {
+        id: "recovered-finish",
+        type: "function",
+        function: { name: "finish", arguments: JSON.stringify({ summary: prose || "finished" }) },
+      },
+    };
+  }
+  return {
+    ok: true,
+    content: null,
+    toolCall: {
+      id: "recovered-commentary",
+      type: "function",
+      function: { name: "commentary", arguments: JSON.stringify({ summary: prose || `${name} arguments were not valid JSON` }) },
+    },
+  };
+}
+
+function failedGenerationText(text: string): string | null {
+  const encoded = text.match(/"failed_generation"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (!encoded?.[1]) return null;
+  try {
+    const decoded = JSON.parse(`"${encoded[1]}"`) as unknown;
+    return typeof decoded === "string" ? decoded : null;
+  } catch {
+    return encoded[1];
+  }
+}
+
+function argumentProse(generation: string): string {
+  const argsMatch = generation.match(/"arguments"\s*:\s*([\s\S]*)$/);
+  if (!argsMatch?.[1]) return generation.trim();
+  let raw = argsMatch[1].trim();
+  if (raw.endsWith("}")) raw = raw.slice(0, -1).trim();
+  if ((raw.startsWith("{") && raw.endsWith("}")) || (raw.startsWith('"') && raw.endsWith('"'))) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (typeof parsed === "string") return parsed.trim();
+      if (parsed && typeof parsed === "object") return JSON.stringify(parsed);
+    } catch {
+      /* the arguments were the prose Groq could not parse */
+    }
+  }
+  return raw.replace(/"\s*$/, "").trim();
+}
+
 function recoverUnparsedOutput(err: unknown): LlmOutcome | null {
   const text = err instanceof Error ? err.message : String(err);
   if (!/output_parse_failed|could not be parsed/i.test(text)) return null;
@@ -328,6 +403,8 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
         }
         const recovered = status === 400 ? recoverMisnamedTool(err) : null;
         if (recovered) return { ok: true, content: null, toolCall: recovered };
+        const broken = status === 400 ? recoverBrokenToolArguments(err) : null;
+        if (broken) return broken;
         const prose = status === 400 ? recoverUnparsedOutput(err) : null;
         if (prose) return prose;
         const retryable = status === 429 || (status !== undefined && status >= 500);

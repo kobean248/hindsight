@@ -51,6 +51,22 @@ describe("runAgent happy path", () => {
     expect(fake.calls).toEqual([]);
   });
 
+  it("keeps going when commentary arguments are not JSON", async () => {
+    const err = Object.assign(
+      new Error(
+        String.raw`HTTP 400: 400 {"error":{"message":"Failed to parse tool call arguments as JSON","type":"invalid_request_error","code":"tool_use_failed","failed_generation":"{\"name\": \"commentary\", \"arguments\": The Experience section lists the latest position as Embedded ML Engineer at NASA HUNCH.\"}"}}`,
+      ),
+      { status: 400 },
+    );
+    const { run, groq } = await setup([err, finishStep("done")]);
+    const res = await run();
+    expect(res.stopReason).toBe("finish");
+    expect(res.finishSummary).toBe("done");
+    expect(res.trace).toHaveLength(1);
+    const followUp = groq.requests[1]!.messages.map((message) => JSON.stringify(message)).join("\n");
+    expect(followUp).toContain("Embedded ML Engineer at NASA HUNCH");
+  });
+
   it("keeps going when Groq cannot parse a plain-text generation", async () => {
     const err = Object.assign(
       new Error(
