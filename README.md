@@ -65,7 +65,7 @@ Task `usps_03` on usps.com: *find the post office nearest to ZIP 94704 and repor
     <td><img src="docs/images/demo-agent-b-with-ledger.png" alt="Agent B on usps.com with 94704 entered in the search box and 57 results listed. Caption: with the lesson it types the ZIP on the first try, searches, and opens the nearest post office." /></td>
   </tr>
   <tr>
-    <td>It opens <b>Find a Post Office</b> and tries to type <code>94704</code> into the search box… and the action fails. The evaluator marks the run failed even though the agent may claim it finished.</td>
+    <td>It opens <b>Find a Post Office</b> and tries to type <code>94704</code> into the search box… and the action fails. With nothing to go on, the agent stalls on the search form.</td>
     <td>With the lesson injected, it types the ZIP on the first try, searches, and opens the nearest post office. A fresh agent with no memory of Agent A's failure, and only what <code>lookup</code> returned.</td>
   </tr>
 </table>
