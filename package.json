@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "Shared lesson ledger for AI agents, backed by Supabase.",
   "type": "module",
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "onnxruntime-node@1.30.0": true,
+    "protobufjs@7.6.6": true
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

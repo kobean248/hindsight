@@ -50,7 +50,7 @@ function sideChannelTool(name: "commentary" | "json") {
 }
 
 const sideChannelTools = [sideChannelTool("commentary"), sideChannelTool("json")];
-const sideChannelNames = new Set(sideChannelTools.map((tool) => tool.function.name));
+const sideChannelNames = new Set<string>(sideChannelTools.map((tool) => tool.function.name));
 
 export interface RunAgentOptions {
   page: Page;
